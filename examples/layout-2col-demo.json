@@ -1,7 +1,4 @@
 {
-  "// Pi HUD Grid Layout Demo": "",
-  "// Copy to .pi/pi-hud.json to try the 2-column dashboard layout": "",
-
   "tokenMode": "always",
 
   "layout": [1, 2, 2],
