@@ -175,6 +175,7 @@ Configure via `.pi/pi-hud.json` (project) or `~/.pi/agent/pi-hud.json` (global):
 | `extCmds` | Extension commands count | ✅ |
 | `tokens` | Token breakdown | ✅ |
 | `cost` | Session cost | ✅ |
+| `rateLimit` | ⚡ API rate limit remaining (Anthropic/OpenAI auto-detected) | ✅ |
 | `toolStats` | Completed tool stats | ✅ |
 | `runningTools` | Running tools | ✅ |
 | `runningAgents` | Running agents | ✅ |

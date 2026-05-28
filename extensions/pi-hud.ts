@@ -37,6 +37,7 @@ type HudElement =
 	| "extCmds"        // Line 2: cmds x3
 	| "tokens"         // Line 2: ↑12.5k ↓3.2k
 	| "cost"           // Line 2: $0.042
+	| "rateLimit"      // Line 2: ⚡ 85% (Anthropic/OpenAI rate limit)
 	| "toolStats"      // Line 2: ✓ Grep ×10
 	| "runningTools"   // Line 2: ◐ Edit (12s)
 	| "runningAgents"  // Line 2: ◐ agent (2m 15s)
@@ -96,6 +97,7 @@ interface HudContext {
 	lastUserInput: string;
 	cwd: string;
 	sessionStart: number;
+	rateLimitInfo?: { provider: string; tokenRemaining: number; tokenLimit: number; requestRemaining: number; requestLimit: number; capturedAt: number };
 }
 
 /** A plugin that contributes custom content to HUD cells */
@@ -495,6 +497,34 @@ interface RunningTool {
 	startTime: number;
 }
 
+/** Rate limit info parsed from provider response headers */
+interface RateLimitInfo {
+	/** Provider that returned this info */
+	provider: string;
+	/** Token rate limit: remaining / limit */
+	tokenRemaining: number;
+	tokenLimit: number;
+	/** Request rate limit: remaining / limit */
+	requestRemaining: number;
+	requestLimit: number;
+	/** When the rate limit resets (Unix ms, if available) */
+	tokenResetAt?: number;
+	requestResetAt?: number;
+	/** Timestamp when this info was captured */
+	capturedAt: number;
+}
+
+/** Normalize header names to lowercase for case-insensitive lookup */
+function getHeader(headers: Record<string, string>, name: string): string | undefined {
+	// Try exact match first, then case-insensitive
+	if (headers[name] !== undefined) return headers[name];
+	const lower = name.toLowerCase();
+	for (const key of Object.keys(headers)) {
+		if (key.toLowerCase() === lower) return headers[key];
+	}
+	return undefined;
+}
+
 export default function (pi: ExtensionAPI) {
 	let sessionStart = Date.now();
 	let cachedCwd = "";
@@ -513,6 +543,9 @@ export default function (pi: ExtensionAPI) {
 
 	let lastUserInput = "";
 	const inputHistory: string[] = [];
+
+	// Rate limit tracking — updated from after_provider_response headers
+	let rateLimitInfo: RateLimitInfo | undefined;
 
 	let plugins: HudPlugin[] = [];
 
@@ -585,6 +618,7 @@ export default function (pi: ExtensionAPI) {
 		agentEntries.length = 0;
 		lastUserInput = "";
 		inputHistory.length = 0;
+		rateLimitInfo = undefined;
 		cachedCwd = "";
 		refreshContextFiles(ctx.cwd);
 
@@ -763,6 +797,27 @@ export default function (pi: ExtensionAPI) {
 							render: () => theme.fg("dim", `$${totalCost.toFixed(3)}`),
 						});
 					}
+				if (isEnabled("rateLimit") && rateLimitInfo) {
+					const rl = rateLimitInfo;
+					const tokenPct = rl.tokenLimit > 0 ? Math.round((rl.tokenRemaining / rl.tokenLimit) * 100) : -1;
+					const reqPct = rl.requestLimit > 0 ? Math.round((rl.requestRemaining / rl.requestLimit) * 100) : -1;
+					// Show the most constrained dimension
+					const worstPct = tokenPct >= 0 && reqPct >= 0 ? Math.min(tokenPct, reqPct) : Math.max(tokenPct, reqPct);
+
+					if (worstPct >= 0) {
+						line2Items.push({
+							key: "rateLimit", defaultLine: 1, order: 6,
+							fixedCol: config.placement?.rateLimit?.col,
+							render: () => {
+								const pctStr = worstPct >= 100 ? "∞" : `${worstPct}%`;
+								const icon = worstPct > 50 ? "⚡" : worstPct > 20 ? "⚡" : "🪫";
+								const color: "success" | "warning" | "error" = worstPct > 50 ? "success" : worstPct > 20 ? "warning" : "error";
+								const detail = rl.tokenLimit > 0 ? `${formatTokens(rl.tokenRemaining)}/${formatTokens(rl.tokenLimit)}` : "";
+								return `${theme.fg(color, `${icon} ${pctStr}`)}${detail ? theme.fg("dim", ` ${detail}`) : ""}`;
+							},
+						});
+					}
+				}
 					if (isEnabled("toolStats")) {
 						const sortedTools = Array.from(toolCounts.entries()).sort(([, a], [, b]) => b - a);
 						for (const [name, count] of sortedTools) {
@@ -919,7 +974,36 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	// ---- Track user input history ----
+	// ---- Track provider rate limits from response headers ----
+	// Anthropic: anthropic-ratelimit-tokens-limit/remaining, anthropic-ratelimit-requests-limit/remaining
+	// OpenAI: x-ratelimit-limit-tokens, x-ratelimit-remaining-tokens, x-ratelimit-limit-requests, x-ratelimit-remaining-requests
+	pi.on("after_provider_response", async (event) => {
+		const headers = event.headers;
+		if (!headers || event.status >= 400) return;
+
+		const isAnthropic = !!getHeader(headers, "anthropic-ratelimit-tokens-limit");
+		const isOpenAI = !isAnthropic && !!getHeader(headers, "x-ratelimit-limit-tokens");
+
+		if (isAnthropic) {
+			const tokenLimit = parseInt(getHeader(headers, "anthropic-ratelimit-tokens-limit") || "0", 10);
+			const tokenRemaining = parseInt(getHeader(headers, "anthropic-ratelimit-tokens-remaining") || "0", 10);
+			const requestLimit = parseInt(getHeader(headers, "anthropic-ratelimit-requests-limit") || "0", 10);
+			const requestRemaining = parseInt(getHeader(headers, "anthropic-ratelimit-requests-remaining") || "0", 10);
+			if (tokenLimit > 0 || requestLimit > 0) {
+				rateLimitInfo = { provider: "anthropic", tokenRemaining, tokenLimit, requestRemaining, requestLimit, capturedAt: Date.now() };
+			}
+		} else if (isOpenAI) {
+			const tokenLimit = parseInt(getHeader(headers, "x-ratelimit-limit-tokens") || "0", 10);
+			const tokenRemaining = parseInt(getHeader(headers, "x-ratelimit-remaining-tokens") || "0", 10);
+			const requestLimit = parseInt(getHeader(headers, "x-ratelimit-limit-requests") || "0", 10);
+			const requestRemaining = parseInt(getHeader(headers, "x-ratelimit-remaining-requests") || "0", 10);
+			if (tokenLimit > 0 || requestLimit > 0) {
+				rateLimitInfo = { provider: "openai", tokenRemaining, tokenLimit, requestRemaining, requestLimit, capturedAt: Date.now() };
+			}
+		}
+	});
+
+		// ---- Track user input history ----
 	pi.on("input", async (event) => {
 		const text = event.text?.trim();
 		if (text) {

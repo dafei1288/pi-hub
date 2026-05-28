@@ -175,6 +175,7 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ◐ Edit (12s) · ◐
 | `extCmds` | 扩展命令数量 | ✅ |
 | `tokens` | Token 明细 | ✅ |
 | `cost` | 费用 | ✅ |
+| `rateLimit` | ⚡ API 额度剩余（Anthropic/OpenAI 自动检测） | ✅ |
 | `toolStats` | 工具调用统计 | ✅ |
 | `runningTools` | 正在执行的工具 | ✅ |
 | `runningAgents` | 正在运行的 Agent | ✅ |
