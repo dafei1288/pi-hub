@@ -4,6 +4,8 @@
  * Line 1: [model] project git:(main* ↑2)    [████████░░] 39%    ⏱ 21m
  * Line 2: AGENTS.md · skills x5 · ext x2 · $0.042 · ✓ Grep x10 | ✓ Bash x3
  * Line 3: ▸ how to build a REST API with authentication?
+ *
+ * Ctrl+H: Open session input history overlay
  */
 
 import { existsSync } from "node:fs";
@@ -11,6 +13,8 @@ import { join } from "node:path";
 import type { AssistantMessage } from "@mariozechner/pi-ai";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import type { Component, TUI } from "@mariozechner/pi-tui";
+import { getKeybindings } from "@mariozechner/pi-tui";
 
 // ---- Helpers ----
 
@@ -86,6 +90,110 @@ function extractUserText(content: string | unknown[]): string {
 	return "";
 }
 
+/** Pad a string with spaces to reach a target visual width (CJK-aware) */
+function padToWidth(text: string, targetWidth: number): string {
+	const vw = visibleWidth(text);
+	const gap = targetWidth - vw;
+	return gap > 0 ? text + " ".repeat(gap) : text;
+}
+
+// ---- History Overlay Component ----
+
+class HistoryOverlay implements Component {
+	private items: string[];
+	private selected: number;
+	private scrollOffset: number;
+	private maxVisible: number;
+	private theme: any;
+	private tui: TUI;
+	private done: (result: string | undefined) => void;
+
+	constructor(
+		items: string[],
+		theme: any,
+		tui: TUI,
+		done: (result: string | undefined) => void,
+	) {
+		this.items = items;
+		this.theme = theme;
+		this.tui = tui;
+		this.done = done;
+		this.selected = 0;
+		this.scrollOffset = 0;
+		this.maxVisible = Math.min(items.length, 10);
+	}
+
+	render(width: number): string[] {
+		const lines: string[] = [];
+		const innerW = width - 2; // │ borders
+
+		// ┌─ Session History ────────────┐
+		const titleText = " Session History ";
+		const titlePadLen = Math.max(0, innerW - titleText.length);
+		lines.push(
+			this.theme.fg("dim", "┌") +
+			this.theme.fg("accent", titleText) +
+			this.theme.fg("dim", "─".repeat(titlePadLen) + "┐"),
+		);
+
+		// Items
+		const prefixW = 3; // " ▸ " visual width
+		const itemContentW = innerW - prefixW;
+		const end = Math.min(this.scrollOffset + this.maxVisible, this.items.length);
+
+		for (let i = this.scrollOffset; i < end; i++) {
+			const raw = this.items[i].replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+			const isSel = i === this.selected;
+
+			const display = truncateToWidth(raw, itemContentW, "..");
+			const padded = padToWidth(display, itemContentW);
+
+			const prefix = isSel ? this.theme.fg("accent", " ▸ ") : "   ";
+			const content = isSel ? this.theme.fg("text", padded) : this.theme.fg("dim", padded);
+
+			lines.push(
+				this.theme.fg("dim", "│") + prefix + content + this.theme.fg("dim", " │"),
+			);
+		}
+
+		// Footer: ├─ ↑↓ scroll · Enter select · Esc close ─┘
+		const footerText = " ↑↓ scroll · Enter select · Esc close ";
+		const footerPadLen = Math.max(0, innerW - footerText.length);
+		lines.push(
+			this.theme.fg("dim", "├") +
+			this.theme.fg("dim", footerText) +
+			this.theme.fg("dim", "─".repeat(footerPadLen) + "┘"),
+		);
+
+		return lines;
+	}
+
+	handleInput(data: string): void {
+		const kb = getKeybindings();
+
+		if (kb.matches(data, "tui.select.up") || data === "k") {
+			if (this.selected > 0) {
+				this.selected--;
+				if (this.selected < this.scrollOffset) this.scrollOffset--;
+				this.tui.requestRender();
+			}
+		} else if (kb.matches(data, "tui.select.down") || data === "j") {
+			if (this.selected < this.items.length - 1) {
+				this.selected++;
+				if (this.selected >= this.scrollOffset + this.maxVisible) this.scrollOffset++;
+				this.tui.requestRender();
+			}
+		} else if (kb.matches(data, "tui.select.confirm") || data === "\n") {
+			this.done(this.items[this.selected]);
+		} else if (kb.matches(data, "tui.select.cancel")) {
+			this.done(undefined);
+		}
+	}
+
+	invalidate() {}
+	dispose() {}
+}
+
 // ---- Tracked state ----
 
 interface RunningTool {
@@ -110,8 +218,9 @@ export default function (pi: ExtensionAPI) {
 		endTime?: number;
 	}> = [];
 
-	// Last user input
+	// User input history
 	let lastUserInput = "";
+	const inputHistory: string[] = [];
 
 	function refreshContextFiles(cwd: string) {
 		if (cwd !== cachedCwd) {
@@ -120,12 +229,47 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
+	// ---- Register Ctrl+H shortcut for history overlay ----
+	pi.registerShortcut("ctrl+h", {
+		description: "Browse session input history",
+		handler: async (ctx) => {
+			if (!ctx.hasUI) return;
+			if (inputHistory.length === 0) {
+				ctx.ui.notify("No input history yet", "info");
+				return;
+			}
+
+			// Reverse: most recent first
+			const history = [...inputHistory].reverse();
+
+			const selected = await ctx.ui.custom<string | undefined>(
+				(tui, theme, _keybindings, done) => {
+					return new HistoryOverlay(history, theme, tui, done);
+				},
+				{
+					overlay: true,
+					overlayOptions: {
+						width: "80%",
+						maxHeight: "50%",
+						anchor: "bottom-center",
+						offsetY: -3, // above the 3-line HUD
+					},
+				},
+			);
+
+			if (selected) {
+				ctx.ui.setEditorText(selected);
+			}
+		},
+	});
+
 	pi.on("session_start", async (_event, ctx) => {
 		sessionStart = Date.now();
 		toolCounts.clear();
 		runningTools.clear();
 		agentEntries.length = 0;
 		lastUserInput = "";
+		inputHistory.length = 0;
 		cachedCwd = "";
 		refreshContextFiles(ctx.cwd);
 
@@ -264,14 +408,17 @@ export default function (pi: ExtensionAPI) {
 					);
 
 					// ================================================================
-					// Line 3: Last user input
+					// Line 3: Last user input + history hint
 					// ================================================================
 					let line3 = "";
 					if (lastUserInput) {
 						const truncated = lastUserInput.length > 200 ? lastUserInput.slice(0, 197) + "..." : lastUserInput;
 						const inputDisplay = truncated.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+						const hint = inputHistory.length > 1
+							? theme.fg("dim", `  Ctrl+H:${inputHistory.length}`)
+							: "";
 						line3 = truncateToWidth(
-							`${theme.fg("accent", "▸")} ${theme.fg("dim", inputDisplay)}`,
+							`${theme.fg("accent", "▸")} ${theme.fg("dim", inputDisplay)}${hint}`,
 							width,
 							theme.fg("dim", "..."),
 						);
@@ -309,9 +456,12 @@ export default function (pi: ExtensionAPI) {
 		}
 	});
 
-	// ---- Track last user input ----
+	// ---- Track user input history ----
 	pi.on("input", async (event) => {
 		const text = event.text?.trim();
-		if (text) lastUserInput = text;
+		if (text) {
+			lastUserInput = text;
+			inputHistory.push(text);
+		}
 	});
 }

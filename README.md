@@ -107,13 +107,37 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ◐ Edit (12s) · ◐
 | `◐ Edit (12s)` | 正在执行的工具，黄色 |
 | `◐ agent (2m 15s)` | 正在运行的 Agent 循环，黄色 |
 
-### Line 3 — 最近输入
+### Line 3 — 最近输入 + 历史提示
 
 ```
-▸ how to build a REST API with authentication?
+▸ how to build a REST API with authentication?  Ctrl+H:5
 ```
 
-最近一次用户输入内容，每次新输入自动更新。
+| 元素 | 说明 |
+|------|------|
+| `▸` | 指示符 |
+| 用户文本 | 最近一次用户输入内容 |
+| `Ctrl+H:5` | 历史记录数量提示（仅当历史 ≥ 2 条时显示） |
+
+### Ctrl+H — 历史记录浮层
+
+按 `Ctrl+H` 弹出会话输入历史：
+
+```
+┌ Session History ─────────────────────────────────────┐
+│ ▸ how to build a REST API with authentication?      │
+│   请帮我检查文档                                      │
+│   帮我提交一下                                        │
+├ ↑↓ scroll · Enter select · Esc close ───────────────┤
+└──────────────────────────────────────────────────────┘
+```
+
+| 按键 | 功能 |
+|------|------|
+| `↑` / `k` | 上移选择 |
+| `↓` / `j` | 下移选择 |
+| `Enter` | 选中并回填到输入框 |
+| `Esc` / `Ctrl+C` | 关闭浮层 |
 
 详细文档见 [docs/pi-hud.md](docs/pi-hud.md)。
 
