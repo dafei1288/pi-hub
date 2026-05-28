@@ -101,7 +101,7 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ◐ Edit (12s) · ◐
 | `skills x5` | 已加载的 skill 数量 |
 | `ext.tools x2` | 扩展注册的工具数量 |
 | `cmds x3` | 扩展注册的 slash 命令数量 |
-| `↑12.5k ↓3.2k` | Token 明细，仅 context ≥ 85% 时显示 |
+| `↑12.5k ↓3.2k` | Token 明细，默认始终显示，可配置 |
 | `$0.042` | 会话累计费用 |
 | `✓ Grep ×10` | 已完成工具调用统计，按次数降序 |
 | `◐ Edit (12s)` | 正在执行的工具，黄色 |
@@ -141,19 +141,99 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ◐ Edit (12s) · ◐
 
 详细文档见 [docs/pi-hud.md](docs/pi-hud.md)。
 
+## 配置
+
+在 `.pi/pi-hud.json`（项目级）或 `~/.pi/agent/pi-hud.json`（全局）中配置：
+
+```jsonc
+{
+  // Token 显示模式："always" 始终 | "highContext" 仅高占用时
+  "tokenMode": "always",
+  "tokenThreshold": 85,
+
+  // 显示/隐藏元素
+  "disabled": ["extCmds", "cost"],
+
+  // 或只显示指定元素（二选一）
+  // "enabled": ["model", "project", "git", "contextBar", "elapsed", "tokens"]
+}
+```
+
+**可配置元素：**
+
+| 元素 | 说明 | 默认 |
+|------|------|------|
+| `model` | 模型名称 | ✅ |
+| `project` | 项目目录名 | ✅ |
+| `git` | Git 分支 | ✅ |
+| `thinking` | Thinking 级别 | ✅ |
+| `contextBar` | Context 进度条 | ✅ |
+| `elapsed` | 会话时长 | ✅ |
+| `contextFiles` | 上下文配置文件 | ✅ |
+| `skills` | Skill 数量 | ✅ |
+| `extTools` | 扩展工具数量 | ✅ |
+| `extCmds` | 扩展命令数量 | ✅ |
+| `tokens` | Token 明细 | ✅ |
+| `cost` | 费用 | ✅ |
+| `toolStats` | 工具调用统计 | ✅ |
+| `runningTools` | 正在执行的工具 | ✅ |
+| `runningAgents` | 正在运行的 Agent | ✅ |
+| `lastInput` | 最近输入 | ✅ |
+| `historyHint` | Ctrl+H 历史提示 | ✅ |
+
+完整配置示例见 [examples/pi-hud.json](examples/pi-hud.json)。
+
+## 插件系统
+
+用户可以编写自定义插件，向 HUD 添加任何内容。
+
+插件放置在 `.pi/pi-hud-plugins/*.js`（项目级）或 `~/.pi/agent/pi-hub-plugins/*.js`（全局）。
+
+**插件接口：**
+
+```js
+module.exports = {
+  name: "my-plugin",        // 唯一名称
+  target: "line2",         // "line1" | "line2" | "line3"
+  order: 100,              // 排序，越小越靠前
+
+  render(ctx, theme, width) {
+    // ctx: 包含所有 HUD 数据
+    // theme.fg(color, text): 颜色，color = text|dim|accent|success|warning|error
+    // width: 终端宽度
+    // 返回 string 显示，undefined 跳过
+    return theme.fg("dim", `🔁 ${ctx.inputHistory.length} turns`);
+  },
+};
+```
+
+**示例插件：**
+
+| 文件 | 功能 |
+|------|------|
+| [examples/turn-counter-plugin.js](examples/turn-counter-plugin.js) | 显示对话轮次计数 |
+| [examples/clock-plugin.js](examples/clock-plugin.js) | 在 Line 1 显示当前时间 |
+| [examples/context-emoji-plugin.js](examples/context-emoji-plugin.js) | 用 emoji 替代 context 进度条 |
+
 ## 项目结构
 
 ```
 pi-hub/
 ├── extensions/
-│   └── pi-hud.ts        # 扩展源码
+│   └── pi-hud.ts            # 扩展源码
 ├── scripts/
-│   └── install.js       # 安装脚本
+│   └── install.js           # 安装脚本
+├── examples/
+│   ├── pi-hud.json           # 配置示例
+│   ├── turn-counter-plugin.js # 插件示例：轮次计数
+│   ├── clock-plugin.js       # 插件示例：时钟
+│   └── context-emoji-plugin.js # 插件示例：emoji context
 ├── docs/
-│   └── pi-hud.md        # 详细文档
+│   └── pi-hud.md             # 详细文档
 ├── tsconfig.json
 ├── package.json
-└── README.md
+├── README.md
+└── README_EN.md
 ```
 
 ## 依赖

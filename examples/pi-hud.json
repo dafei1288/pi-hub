@@ -1,0 +1,27 @@
+{
+  "// comment": "Pi HUD Configuration — place in .pi/pi-hud.json (project) or ~/.pi/agent/pi-hud.json (global)",
+
+  "// === Token Display ===": "",
+  "tokenMode": "always",
+  "// tokenMode options": ["always", "highContext"],
+  "// tokenThreshold": 85,
+
+  "// === Show / Hide Elements ===": "",
+  "// enabled": ["model", "project", "git", "thinking", "contextBar", "elapsed", "contextFiles", "skills", "extTools", "extCmds", "tokens", "cost", "toolStats", "runningTools", "runningAgents", "lastInput", "historyHint"],
+  "// disabled": ["extCmds"],
+
+  "// === Examples ===": "",
+
+  "// Hide specific items": {
+    "disabled": ["extCmds", "cost"]
+  },
+
+  "// Show only essentials": {
+    "enabled": ["model", "project", "git", "contextBar", "elapsed", "tokens", "toolStats"]
+  },
+
+  "// Tokens only at high context": {
+    "tokenMode": "highContext",
+    "tokenThreshold": 90
+  }
+}

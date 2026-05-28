@@ -101,7 +101,7 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ◐ Edit (12s) · ◐
 | `skills x5` | Number of loaded skills |
 | `ext.tools x2` | Number of tools registered by extensions |
 | `cmds x3` | Number of slash commands registered by extensions |
-| `↑12.5k ↓3.2k` | Token breakdown; only shown when context ≥ 85% |
+| `↑12.5k ↓3.2k` | Token breakdown; shown by default, configurable |
 | `$0.042` | Cumulative session cost |
 | `✓ Grep ×10` | Completed tool call stats, sorted by count descending |
 | `◐ Edit (12s)` | Running tool (yellow) |
@@ -141,19 +141,99 @@ Press `Ctrl+H` to open a scrollable history overlay:
 
 For detailed documentation, see [docs/pi-hud.md](docs/pi-hud.md).
 
+## Configuration
+
+Configure via `.pi/pi-hud.json` (project) or `~/.pi/agent/pi-hud.json` (global):
+
+```jsonc
+{
+  // Token display: "always" | "highContext" (only when context is high)
+  "tokenMode": "always",
+  "tokenThreshold": 85,
+
+  // Show/hide elements
+  "disabled": ["extCmds", "cost"],
+
+  // Or only show specified elements (mutually exclusive with disabled)
+  // "enabled": ["model", "project", "git", "contextBar", "elapsed", "tokens"]
+}
+```
+
+**Configurable elements:**
+
+| Element | Description | Default |
+|---------|-------------|----------|
+| `model` | Model name | ✅ |
+| `project` | Project directory name | ✅ |
+| `git` | Git branch | ✅ |
+| `thinking` | Thinking level | ✅ |
+| `contextBar` | Context progress bar | ✅ |
+| `elapsed` | Session elapsed time | ✅ |
+| `contextFiles` | Context config files | ✅ |
+| `skills` | Skill count | ✅ |
+| `extTools` | Extension tools count | ✅ |
+| `extCmds` | Extension commands count | ✅ |
+| `tokens` | Token breakdown | ✅ |
+| `cost` | Session cost | ✅ |
+| `toolStats` | Completed tool stats | ✅ |
+| `runningTools` | Running tools | ✅ |
+| `runningAgents` | Running agents | ✅ |
+| `lastInput` | Last user input | ✅ |
+| `historyHint` | Ctrl+H history hint | ✅ |
+
+See [examples/pi-hud.json](examples/pi-hud.json) for a full configuration example.
+
+## Plugin System
+
+Users can write custom plugins to add any content to the HUD.
+
+Place plugins in `.pi/pi-hud-plugins/*.js` (project) or `~/.pi/agent/pi-hub-plugins/*.js` (global).
+
+**Plugin interface:**
+
+```js
+module.exports = {
+  name: "my-plugin",        // Unique name
+  target: "line2",         // "line1" | "line2" | "line3"
+  order: 100,              // Sort order, lower = earlier
+
+  render(ctx, theme, width) {
+    // ctx: all HUD data
+    // theme.fg(color, text): color, color = text|dim|accent|success|warning|error
+    // width: terminal width
+    // Return string to display, or undefined to skip
+    return theme.fg("dim", `🔁 ${ctx.inputHistory.length} turns`);
+  },
+};
+```
+
+**Example plugins:**
+
+| File | Description |
+|------|-------------|
+| [examples/turn-counter-plugin.js](examples/turn-counter-plugin.js) | Turn counter |
+| [examples/clock-plugin.js](examples/clock-plugin.js) | Clock on Line 1 |
+| [examples/context-emoji-plugin.js](examples/context-emoji-plugin.js) | Emoji context indicator |
+
 ## Project Structure
 
 ```
 pi-hub/
 ├── extensions/
-│   └── pi-hud.ts        # Extension source code
+│   └── pi-hud.ts            # Extension source code
 ├── scripts/
-│   └── install.js       # Installation script
+│   └── install.js           # Installation script
+├── examples/
+│   ├── pi-hud.json           # Configuration example
+│   ├── turn-counter-plugin.js # Plugin example: turn counter
+│   ├── clock-plugin.js       # Plugin example: clock
+│   └── context-emoji-plugin.js # Plugin example: emoji context
 ├── docs/
-│   └── pi-hud.md        # Detailed documentation
+│   └── pi-hud.md             # Detailed documentation
 ├── tsconfig.json
 ├── package.json
-└── README.md
+├── README.md
+└── README_EN.md
 ```
 
 ## Dependencies
