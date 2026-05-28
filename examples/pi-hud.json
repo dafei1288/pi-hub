@@ -1,5 +1,6 @@
 {
-  "// comment": "Pi HUD Configuration — place in .pi/pi-hud.json (project) or ~/.pi/agent/pi-hud.json (global)",
+  "// === Pi HUD Configuration ===": "",
+  "// Place in .pi/pi-hud.json (project) or ~/.pi/agent/pi-hud.json (global)": "",
 
   "// === Token Display ===": "",
   "tokenMode": "always",
@@ -10,18 +11,49 @@
   "// enabled": ["model", "project", "git", "thinking", "contextBar", "elapsed", "contextFiles", "skills", "extTools", "extCmds", "tokens", "cost", "toolStats", "runningTools", "runningAgents", "lastInput", "historyHint"],
   "// disabled": ["extCmds"],
 
+  "// === Layout (grid mode) ===": "",
+  "// Array of column counts per line. Max 5 lines, each 1/2/4 columns.",
+  "// Omit this field entirely to use classic single-column mode.",
+  "// layout": [1, 2, 2],
+
+  "// === Placement (pin elements to cells) ===": "",
+  "// Only effective when layout is set. Key = element id or plugin name.",
+  "// Elements not listed auto-distribute left-to-right, top-to-bottom.",
+  "// placement": {
+  "//   "tokens":    { "line": 2, "col": 0 },
+  "//   "cost":      { "line": 2, "col": 0 },
+  "//   "toolStats":  { "line": 2, "col": 1 },
+  "//   "lastInput":  { "line": 3, "col": 0 },
+  "//   "plugin:random-quote": { "line": 3, "col": 1 }
+  "// },
+
   "// === Examples ===": "",
 
-  "// Hide specific items": {
+  "// Example 1: Classic mode (default, no layout needed)": {
+    "tokenMode": "always",
     "disabled": ["extCmds", "cost"]
   },
 
-  "// Show only essentials": {
-    "enabled": ["model", "project", "git", "contextBar", "elapsed", "tokens", "toolStats"]
+  "// Example 2: 2-column layout, Line2+Line3 split": {
+    "layout": [1, 2, 2],
+    "placement": {
+      "tokens": { "line": 1, "col": 0 },
+      "cost": { "line": 1, "col": 0 },
+      "toolStats": { "line": 1, "col": 1 },
+      "lastInput": { "line": 2, "col": 0 },
+      "plugin:random-quote": { "line": 2, "col": 1 }
+    }
   },
 
-  "// Tokens only at high context": {
-    "tokenMode": "highContext",
-    "tokenThreshold": 90
+  "// Example 3: Rich dashboard, 5 lines": {
+    "layout": [1, 1, 2, 2, 4],
+    "placement": {
+      "tokens": { "line": 2, "col": 0 },
+      "cost": { "line": 2, "col": 1 },
+      "toolStats": { "line": 3, "col": 0 },
+      "runningTools": { "line": 3, "col": 1 },
+      "lastInput": { "line": 4, "col": 0 },
+      "plugin:random-quote": { "line": 4, "col": 3 }
+    }
   }
 }

@@ -43,6 +43,14 @@ type HudElement =
 	| "lastInput"      // Line 3: ▸ last user input
 	| "historyHint";   // Line 3: Ctrl+H:5
 
+/** Pin an element to a specific cell in the grid */
+interface Placement {
+	/** 0-indexed line number (0-4) */
+	line: number;
+	/** 0-indexed column number */
+	col: number;
+}
+
 /** User configuration for Pi HUD */
 interface HudConfig {
 	/** Which elements to show. Defaults to all. */
@@ -53,6 +61,18 @@ interface HudConfig {
 	tokenMode?: "always" | "highContext";
 	/** Token display threshold when tokenMode is "highContext". Default: 85. */
 	tokenThreshold?: number;
+	/**
+	 * Layout: array of column counts per line. Max 5 lines, each 1/2/4 columns.
+	 * Undefined = classic single-column mode (current behavior).
+	 * Example: [1, 2, 2] means Line1=full, Line2=2-col, Line3=2-col.
+	 */
+	layout?: [number, ...number[]];
+	/**
+	 * Pin elements to specific cells. Only effective when layout is set.
+	 * Key = element id or plugin name, value = { line, col }.
+	 * Elements not listed here auto-distribute left-to-right, top-to-bottom.
+	 */
+	placement?: Record<string, Placement>;
 }
 
 /** Context data passed to custom HUD plugins */
@@ -78,20 +98,25 @@ interface HudContext {
 	sessionStart: number;
 }
 
-/** A plugin that contributes custom content to HUD lines */
+/** A plugin that contributes custom content to HUD cells */
 interface HudPlugin {
 	/** Unique name for the plugin */
 	name: string;
 	/**
-	 * Render custom content for a HUD line.
+	 * Render custom content for a HUD cell.
 	 * Return a string to display, or undefined to skip.
 	 * Plugins are called for every render cycle — keep it fast.
 	 */
 	render(ctx: HudContext, theme: HudTheme, width: number): string | undefined;
-	/** Which line to target: "line1" | "line2" | "line3". Default: "line2". */
-	target?: "line1" | "line2" | "line3";
+	/** Which line to target: "line1" | ... | "line5". Default: "line2". */
+	target?: "line1" | "line2" | "line3" | "line4" | "line5";
 	/** Sort order within the line. Lower = earlier. Default: 100. */
 	order?: number;
+	/**
+	 * Column index (0-based) when layout mode is active.
+	 * If omitted, auto-distributes.
+	 */
+	col?: number;
 }
 
 /** Subset of theme API passed to plugins */
@@ -168,6 +193,12 @@ function padToWidth(text: string, targetWidth: number): string {
 	const vw = visibleWidth(text);
 	const gap = targetWidth - vw;
 	return gap > 0 ? text + " ".repeat(gap) : text;
+}
+
+/** Strip ANSI escape sequences and return visible length */
+function ansiVisibleLen(s: string): number {
+	// eslint-disable-next-line no-control-regex
+	return s.replace(/\x1b\[[0-9;]*m/g, "").replace(/\x1b[^\x1b]*\x07/g, "").length;
 }
 
 /** Load and merge config from .pi/pi-hud.json (project) and ~/.pi/agent/pi-hud.json (global) */
@@ -259,9 +290,8 @@ class HistoryOverlay implements Component {
 
 	render(width: number): string[] {
 		const lines: string[] = [];
-		const innerW = width - 2; // │ borders
+		const innerW = width - 2;
 
-		// ┌─ Session History ────────────┐
 		const titleText = " Session History ";
 		const titlePadLen = Math.max(0, innerW - titleText.length);
 		lines.push(
@@ -270,8 +300,7 @@ class HistoryOverlay implements Component {
 			this.theme.fg("dim", "─".repeat(titlePadLen) + "┐"),
 		);
 
-		// Items
-		const prefixW = 3; // " ▸ " visual width
+		const prefixW = 3;
 		const itemContentW = innerW - prefixW;
 		const end = Math.min(this.scrollOffset + this.maxVisible, this.items.length);
 
@@ -290,7 +319,6 @@ class HistoryOverlay implements Component {
 			);
 		}
 
-		// Footer
 		const footerText = " ↑↓ scroll · Enter select · Esc close ";
 		const footerPadLen = Math.max(0, innerW - footerText.length);
 		lines.push(
@@ -329,6 +357,136 @@ class HistoryOverlay implements Component {
 }
 
 // ============================================================================
+// Cell-based layout renderer
+// ============================================================================
+
+/**
+ * A renderable item — either a built-in element or a plugin.
+ * Produces one chunk of styled text for a single cell.
+ */
+interface CellItem {
+	/** Unique key for placement lookup */
+	key: string;
+	/** Which line index this targets by default (0-based) */
+	defaultLine: number;
+	/** Sort order within a line */
+	order: number;
+	/** Explicit column from plugin or placement, or undefined for auto */
+	fixedCol: number | undefined;
+	/** Render this item's content */
+	render(): string | undefined;
+}
+
+/**
+ * Render a grid of cells into output lines.
+ *
+ * @param layout   Column counts per row, e.g. [1, 2, 2]
+ * @param cellItems Items to distribute into cells
+ * @param totalWidth Terminal width
+ * @param sep     Column separator string (ANSI-safe)
+ * @returns Array of rendered line strings
+ */
+function renderGrid(
+	layout: number[],
+	cellItems: CellItem[],
+	totalWidth: number,
+	sep: string,
+): string[] {
+	const numCols = layout.reduce((a, b) => Math.max(a, b), 0);
+	const sepW = visibleWidth(sep);
+	// Each column gets equal width; separators take space between columns
+	const colW = Math.floor((totalWidth - (numCols - 1) * sepW) / numCols);
+
+	// Build a grid: grid[line][col] = rendered content or ""
+	const grid: string[][] = [];
+	for (let i = 0; i < layout.length; i++) {
+		grid.push(new Array(layout[i]).fill(""));
+	}
+
+	// Track which cells are occupied (for placement)
+	const occupied = new Set<string>();
+	const cellKey = (line: number, col: number) => `${line}:${col}`;
+
+	// First pass: items with fixed placement
+	for (const item of cellItems) {
+		const place = item.fixedCol;
+		if (place === undefined) continue;
+
+		// Determine target line
+		let targetLine = item.defaultLine;
+		if (targetLine >= layout.length) targetLine = layout.length - 1;
+
+		const targetCol = Math.min(place, layout[targetLine] - 1);
+		const key = cellKey(targetLine, targetCol);
+
+		if (!occupied.has(key)) {
+			const content = item.render();
+			if (content != null) {
+				grid[targetLine][targetCol] = content;
+				occupied.add(key);
+			}
+		}
+	}
+
+	// Second pass: auto-distribute remaining items
+	for (const item of cellItems) {
+		if (item.fixedCol !== undefined) continue; // already placed
+
+		const content = item.render();
+		if (content == null) continue;
+
+		let targetLine = item.defaultLine;
+		if (targetLine >= layout.length) targetLine = layout.length - 1;
+
+		// Find first empty cell in this line, then overflow to next lines
+		let placed = false;
+		for (let l = targetLine; l < layout.length && !placed; l++) {
+			for (let c = 0; c < layout[l] && !placed; c++) {
+				if (!occupied.has(cellKey(l, c))) {
+					// For multi-col items in a single-col line, truncate to full width
+					const availW = layout[l] === 1 ? totalWidth : colW;
+					const truncated = truncateToWidth(content, availW, "…");
+					grid[l][c] = layout[l] === 1 ? padToWidth(truncated, totalWidth) : padToWidth(truncated, colW);
+					occupied.add(cellKey(l, c));
+					placed = true;
+				}
+			}
+		}
+
+		// If all lines full, append to last cell of last line
+		if (!placed) {
+			const lastLine = layout.length - 1;
+			const lastCol = layout[lastLine] - 1;
+			const existing = grid[lastLine][lastCol];
+			const availW = layout[lastLine] === 1 ? totalWidth : colW;
+			const combined = existing ? existing + " · " + content : content;
+			grid[lastLine][lastCol] = truncateToWidth(padToWidth(combined, availW), availW, "…");
+		}
+	}
+
+	// Render each row
+	const lines: string[] = [];
+	for (let l = 0; l < layout.length; l++) {
+		const cols = layout[l];
+		if (cols === 1) {
+			// Full-width line — truncate to totalWidth
+			const raw = grid[l][0] || "";
+			lines.push(truncateToWidth(padToWidth(raw, totalWidth), totalWidth));
+		} else {
+			// Multi-column line — join with separator
+			const rendered: string[] = [];
+			for (let c = 0; c < cols; c++) {
+				const raw = grid[l][c] || "";
+				rendered.push(truncateToWidth(padToWidth(raw, colW), colW));
+			}
+			lines.push(rendered.join(sep));
+		}
+	}
+
+	return lines;
+}
+
+// ============================================================================
 // Main Extension
 // ============================================================================
 
@@ -343,11 +501,9 @@ export default function (pi: ExtensionAPI) {
 	let cachedContextFiles: string[] = [];
 	let config: HudConfig = {};
 
-	// Tool tracking
 	const toolCounts = new Map<string, number>();
 	const runningTools = new Map<string, RunningTool>();
 
-	// Agent tracking
 	const agentEntries: Array<{
 		id: string;
 		status: "running" | "completed";
@@ -355,11 +511,9 @@ export default function (pi: ExtensionAPI) {
 		endTime?: number;
 	}> = [];
 
-	// User input history
 	let lastUserInput = "";
 	const inputHistory: string[] = [];
 
-	// Loaded plugins
 	let plugins: HudPlugin[] = [];
 
 	function refreshContextFiles(cwd: string) {
@@ -371,19 +525,27 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
-	/** Check if an element should be displayed */
 	function isEnabled(el: HudElement): boolean {
-		// disabled takes precedence
 		if (config.disabled?.includes(el)) return false;
-		// if enabled list is specified, only show those
 		if (config.enabled && config.enabled.length > 0) {
 			return config.enabled.includes(el);
 		}
-		// default: all enabled
 		return true;
 	}
 
-	// ---- Register Ctrl+H shortcut for history overlay ----
+	/** Map target string to 0-based line index */
+	function targetToLine(target: string | undefined): number {
+		switch (target ?? "line2") {
+			case "line1": return 0;
+			case "line2": return 1;
+			case "line3": return 2;
+			case "line4": return 3;
+			case "line5": return 4;
+			default: return 1;
+		}
+	}
+
+	// ---- Register Ctrl+H shortcut ----
 	pi.registerShortcut("ctrl+h", {
 		description: "Browse session input history",
 		handler: async (ctx) => {
@@ -430,7 +592,6 @@ export default function (pi: ExtensionAPI) {
 			const unsubBranch = footerData.onBranchChange(() => tui.requestRender());
 			const timer = setInterval(() => tui.requestRender(), 30_000);
 
-			// Wrap theme as HudTheme for plugins
 			const hudTheme: HudTheme = {
 				fg: (color, text) => theme.fg(color, text),
 			};
@@ -476,7 +637,6 @@ export default function (pi: ExtensionAPI) {
 
 					const elapsed = formatDuration(Date.now() - sessionStart);
 
-					// Build HudContext for plugins
 					const hudCtx: HudContext = {
 						model: model ? { id: modelId, reasoning: model.reasoning } : undefined,
 						branch: branch ?? undefined,
@@ -500,33 +660,26 @@ export default function (pi: ExtensionAPI) {
 					};
 
 					// ================================================================
-					// Line 1: [model] project git:(main) · medium    [████░░] 39%    ⏱ 21m
+					// Build all renderable items
 					// ================================================================
-					const line1Parts: string[] = [];
+					const sep = theme.fg("dim", "│");
 
-					if (isEnabled("model")) {
-						line1Parts.push(theme.fg("accent", `[${modelId}]`));
-					}
-					if (isEnabled("project")) {
-						line1Parts.push(theme.fg("text", projectName));
-					}
-					if (isEnabled("git") && branch) {
-						line1Parts.push(theme.fg("dim", `git:(${branch})`));
-					}
+					// --- Line 1 elements ---
+					const line1Parts: string[] = [];
+					if (isEnabled("model")) line1Parts.push(theme.fg("accent", `[${modelId}]`));
+					if (isEnabled("project")) line1Parts.push(theme.fg("text", projectName));
+					if (isEnabled("git") && branch) line1Parts.push(theme.fg("dim", `git:(${branch})`));
 					if (isEnabled("thinking") && model?.reasoning && thinking !== "off") {
 						line1Parts.push(theme.fg("dim", thinking));
 					}
-
 					const line1Left = line1Parts.join(" ");
 
-					// Progress bar (center)
 					let ctxBar = "";
 					if (isEnabled("contextBar")) {
-						const left1W = visibleWidth(line1Left);
 						const line1RightStr = isEnabled("elapsed") ? theme.fg("dim", `⏱ ${elapsed}`) : "";
-						const right1W = visibleWidth(line1RightStr);
-						const barAvail = width - left1W - right1W - 6;
-
+						const leftW = visibleWidth(line1Left);
+						const rightW = visibleWidth(line1RightStr);
+						const barAvail = width - leftW - rightW - 6;
 						if (barAvail > 20 && ctxPercent != null) {
 							const barW = Math.min(barAvail - 6, 20);
 							ctxBar = ctxColor(theme, ctxPercent, `${progressBar(ctxPercent, barW)} ${Math.round(ctxPercent)}%`);
@@ -536,138 +689,202 @@ export default function (pi: ExtensionAPI) {
 							ctxBar = theme.fg("dim", "?%");
 						}
 					}
-
 					const line1Right = isEnabled("elapsed") ? theme.fg("dim", `⏱ ${elapsed}`) : "";
 
-					// Plugin content for line1
-					const pluginLine1 = plugins
-						.filter((p) => (p.target ?? "line2") === "line1")
-						.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
-						.map((p) => p.render(hudCtx, hudTheme, width))
-						.filter((s): s is string => s != null);
+					// Line 1 has special center-aligned layout
+					const line1Items: CellItem[] = [{
+						key: "_line1_main",
+						defaultLine: 0,
+						order: 0,
+						fixedCol: config.placement?._line1_main?.col,
+						render: () => {
+							const leftW = visibleWidth(line1Left);
+							const centerW = visibleWidth(ctxBar);
+							const rightW = visibleWidth(line1Right);
+							const gap = width - leftW - centerW - rightW;
+							if (gap >= 2) {
+								const lp = Math.floor(gap / 2);
+								const rp = gap - lp;
+								return line1Left + " ".repeat(lp) + ctxBar + " ".repeat(rp) + line1Right;
+							}
+							return truncateToWidth(line1Left + "  " + ctxBar + "  " + line1Right, width);
+						},
+					}];
 
-					const left1W = visibleWidth(line1Left);
-					const centerW = visibleWidth(ctxBar);
-					const right1W = visibleWidth(line1Right);
-					const totalRight = right1W + (pluginLine1.length > 0 ? visibleWidth(pluginLine1.join(" ")) + 2 : 0);
-					const gap = width - left1W - centerW - totalRight;
+					// --- Line 2 elements ---
+					const line2Items: CellItem[] = [];
 
-					let line1: string;
-					const extra = pluginLine1.length > 0 ? " " + pluginLine1.join(" ") : "";
-					if (gap >= 2) {
-						const lp = Math.floor(gap / 2);
-						const rp = gap - lp;
-						line1 = line1Left + " ".repeat(lp) + ctxBar + " ".repeat(rp) + line1Right + extra;
-					} else {
-						line1 = truncateToWidth(line1Left + "  " + ctxBar + "  " + line1Right + extra, width);
-					}
-
-					// ================================================================
-					// Line 2: AGENTS.md · skills x5 · ↑12.5k ↓3.2k · $0.042 · ✓ Grep ×10
-					// ================================================================
-					const parts: string[] = [];
-
-					// Context files
 					if (isEnabled("contextFiles")) {
 						for (const f of cachedContextFiles) {
-							parts.push(theme.fg("success", f));
+							line2Items.push({
+								key: `ctxFile:${f}`,
+								defaultLine: 1, order: 0,
+								fixedCol: config.placement?.[`ctxFile:${f}`]?.col,
+								render: () => theme.fg("success", f),
+							});
 						}
 					}
-
-					// Resource counts
 					if (isEnabled("skills") && skillCmds.length > 0) {
-						parts.push(theme.fg("dim", `skills x${skillCmds.length}`));
+						line2Items.push({
+							key: "skills", defaultLine: 1, order: 1,
+							fixedCol: config.placement?.skills?.col,
+							render: () => theme.fg("dim", `skills x${skillCmds.length}`),
+						});
 					}
 					if (isEnabled("extTools") && extTools.length > 0) {
-						parts.push(theme.fg("dim", `ext.tools x${extTools.length}`));
+						line2Items.push({
+							key: "extTools", defaultLine: 1, order: 2,
+							fixedCol: config.placement?.extTools?.col,
+							render: () => theme.fg("dim", `ext.tools x${extTools.length}`),
+						});
 					}
 					if (isEnabled("extCmds") && extCmds.length > 0) {
-						parts.push(theme.fg("dim", `cmds x${extCmds.length}`));
+						line2Items.push({
+							key: "extCmds", defaultLine: 1, order: 3,
+							fixedCol: config.placement?.extCmds?.col,
+							render: () => theme.fg("dim", `cmds x${extCmds.length}`),
+						});
 					}
-
-					// Token breakdown — now always shown by default
 					if (isEnabled("tokens") && totalInput > 0) {
 						const threshold = config.tokenThreshold ?? 85;
 						const showTokens = config.tokenMode === "always" || ctxPercent >= threshold;
 						if (showTokens) {
-							parts.push(theme.fg("dim", `↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`));
+							line2Items.push({
+								key: "tokens", defaultLine: 1, order: 4,
+								fixedCol: config.placement?.tokens?.col,
+								render: () => theme.fg("dim", `↑${formatTokens(totalInput)} ↓${formatTokens(totalOutput)}`),
+							});
 						}
 					}
-
 					if (isEnabled("cost") && totalCost > 0) {
-						parts.push(theme.fg("dim", `$${totalCost.toFixed(3)}`));
+						line2Items.push({
+							key: "cost", defaultLine: 1, order: 5,
+							fixedCol: config.placement?.cost?.col,
+							render: () => theme.fg("dim", `$${totalCost.toFixed(3)}`),
+						});
 					}
-
-					// Completed tool stats
 					if (isEnabled("toolStats")) {
 						const sortedTools = Array.from(toolCounts.entries()).sort(([, a], [, b]) => b - a);
 						for (const [name, count] of sortedTools) {
-							parts.push(`${theme.fg("success", "✓")} ${theme.fg("dim", `${name} ×${count}`)}`);
+							line2Items.push({
+								key: `tool:${name}`, defaultLine: 1, order: 10,
+								fixedCol: config.placement?.[`tool:${name}`]?.col,
+								render: () => `${theme.fg("success", "✓")} ${theme.fg("dim", `${name} ×${count}`)}`,
+							});
 						}
 					}
-
-					// Running tool indicator(s)
 					if (isEnabled("runningTools")) {
 						for (const tool of Array.from(runningTools.values())) {
-							const dur = formatDuration(Date.now() - tool.startTime);
-							parts.push(`${theme.fg("warning", "◐")} ${theme.fg("text", `${tool.name} (${dur})`)}`);
+							line2Items.push({
+								key: `running:${tool.name}`, defaultLine: 1, order: 20,
+								fixedCol: config.placement?.[`running:${tool.name}`]?.col,
+								render: () => `${theme.fg("warning", "◐")} ${theme.fg("text", `${tool.name} (${formatDuration(Date.now() - tool.startTime)})`)}`,
+							});
 						}
 					}
-
-					// Running agents
 					if (isEnabled("runningAgents")) {
-						const runningAgentsList = agentEntries.filter((a) => a.status === "running");
-						for (const agent of runningAgentsList.slice(-2)) {
-							const dur = formatDuration(Date.now() - agent.startTime);
-							parts.push(`${theme.fg("warning", "◐")} ${theme.fg("accent", `agent (${dur})`)}`);
+						const running = agentEntries.filter((a) => a.status === "running");
+						for (const agent of running.slice(-2)) {
+							line2Items.push({
+								key: "runningAgent", defaultLine: 1, order: 21,
+								fixedCol: config.placement?.runningAgent?.col,
+								render: () => `${theme.fg("warning", "◐")} ${theme.fg("accent", `agent (${formatDuration(Date.now() - agent.startTime)})`)}`,
+							});
 						}
 					}
 
-					// Plugin content for line2
-					const pluginLine2 = plugins
-						.filter((p) => (p.target ?? "line2") === "line2")
-						.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
-						.map((p) => p.render(hudCtx, hudTheme, width))
-						.filter((s): s is string => s != null);
-					parts.push(...pluginLine2);
+					// --- Line 3 elements ---
+					const line3Items: CellItem[] = [];
+					if (isEnabled("lastInput") && lastUserInput) {
+						line3Items.push({
+							key: "lastInput", defaultLine: 2, order: 0,
+							fixedCol: config.placement?.lastInput?.col,
+							render: () => {
+								const truncated = lastUserInput.length > 200 ? lastUserInput.slice(0, 197) + "..." : lastUserInput;
+								const display = truncated.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+								const parts = [theme.fg("accent", "▸"), theme.fg("dim", display)];
+								if (isEnabled("historyHint") && inputHistory.length > 1) {
+									parts.push(theme.fg("dim", `Ctrl+H:${inputHistory.length}`));
+								}
+								return parts.join(" ");
+							},
+						});
+					}
 
+					// --- Plugin items ---
+					const pluginItems: CellItem[] = plugins
+						.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
+						.map((p) => ({
+							key: `plugin:${p.name}`,
+							defaultLine: targetToLine(p.target),
+							order: p.order ?? 100,
+							fixedCol: p.col ?? config.placement?.[`plugin:${p.name}`]?.col,
+							render: () => p.render(hudCtx, hudTheme, width),
+						}));
+
+					// All items sorted
+					const allItems = [...line1Items, ...line2Items, ...line3Items, ...pluginItems];
+
+					// ================================================================
+					// Layout mode branch
+					// ================================================================
+					const layout = config.layout;
+
+					if (layout && layout.length > 0) {
+						// === Grid layout mode ===
+						return renderGrid(layout, allItems, width, sep);
+					}
+
+					// === Classic single-column mode (default, unchanged) ===
+
+					// Line 1
+					const l1Content = line1Items[0]?.render();
+					const pluginLine1 = pluginItems
+						.filter((p) => p.defaultLine === 0)
+						.sort((a, b) => a.order - b.order)
+						.map((p) => p.render())
+						.filter((s): s is string => s != null);
+					let line1 = l1Content || "";
+					if (pluginLine1.length > 0) line1 += " " + pluginLine1.join(" ");
+					line1 = truncateToWidth(line1, width);
+
+					// Line 2
+					const l2Parts = line2Items
+						.sort((a, b) => a.order - b.order)
+						.map((item) => item.render())
+						.filter((s): s is string => s != null);
+					const pluginLine2 = pluginItems
+						.filter((p) => p.defaultLine === 1)
+						.sort((a, b) => a.order - b.order)
+						.map((p) => p.render())
+						.filter((s): s is string => s != null);
+					l2Parts.push(...pluginLine2);
 					const line2 = truncateToWidth(
-						parts.join(theme.fg("dim", " · ")),
+						l2Parts.join(theme.fg("dim", " · ")),
 						width,
 						theme.fg("dim", "..."),
 					);
 
-					// ================================================================
-					// Line 3: Last user input + history hint
-					// ================================================================
+					// Line 3
 					let line3 = "";
-					if (isEnabled("lastInput") && lastUserInput) {
-						const truncated = lastUserInput.length > 200 ? lastUserInput.slice(0, 197) + "..." : lastUserInput;
-						const inputDisplay = truncated.replace(/\n/g, " ").replace(/\s+/g, " ").trim();
-
-						const inputParts: string[] = [];
-						inputParts.push(theme.fg("accent", "▸"));
-						inputParts.push(theme.fg("dim", inputDisplay));
-
-						if (isEnabled("historyHint") && inputHistory.length > 1) {
-							inputParts.push(theme.fg("dim", `Ctrl+H:${inputHistory.length}`));
-						}
-
-						// Plugin content for line3
-						const pluginLine3 = plugins
-							.filter((p) => p.target === "line3")
-							.sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
-							.map((p) => p.render(hudCtx, hudTheme, width))
+					if (lastUserInput && isEnabled("lastInput")) {
+						const inputParts = line3Items
+							.sort((a, b) => a.order - b.order)
+							.map((item) => item.render())
 							.filter((s): s is string => s != null);
-						if (pluginLine3.length > 0) {
-							inputParts.push(...pluginLine3);
+						const pluginLine3 = pluginItems
+							.filter((p) => p.defaultLine === 2)
+							.sort((a, b) => a.order - b.order)
+							.map((p) => p.render())
+							.filter((s): s is string => s != null);
+						inputParts.push(...pluginLine3);
+						if (inputParts.length > 0) {
+							line3 = truncateToWidth(
+								inputParts.join(" "),
+								width,
+								theme.fg("dim", "..."),
+							);
 						}
-
-						line3 = truncateToWidth(
-							inputParts.join(" "),
-							width,
-							theme.fg("dim", "..."),
-						);
 					}
 
 					return line3 ? [line1, line2, line3] : [line1, line2];
