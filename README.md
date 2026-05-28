@@ -214,6 +214,7 @@ module.exports = {
 | [examples/turn-counter-plugin.js](examples/turn-counter-plugin.js) | 显示对话轮次计数 |
 | [examples/clock-plugin.js](examples/clock-plugin.js) | 在 Line 1 显示当前时间 |
 | [examples/context-emoji-plugin.js](examples/context-emoji-plugin.js) | 用 emoji 替代 context 进度条 |
+| [examples/quote-plugin.js](examples/quote-plugin.js) | 每 10 秒随机显示一条谏言 💬 |
 
 ## 项目结构
 
@@ -228,6 +229,7 @@ pi-hub/
 │   ├── turn-counter-plugin.js # 插件示例：轮次计数
 │   ├── clock-plugin.js       # 插件示例：时钟
 │   └── context-emoji-plugin.js # 插件示例：emoji context
+│   └── quote-plugin.js       # 插件示例：随机谏言
 ├── docs/
 │   └── pi-hud.md             # 详细文档
 ├── tsconfig.json

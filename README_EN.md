@@ -214,6 +214,7 @@ module.exports = {
 | [examples/turn-counter-plugin.js](examples/turn-counter-plugin.js) | Turn counter |
 | [examples/clock-plugin.js](examples/clock-plugin.js) | Clock on Line 1 |
 | [examples/context-emoji-plugin.js](examples/context-emoji-plugin.js) | Emoji context indicator |
+| [examples/quote-plugin.js](examples/quote-plugin.js) | Random quote every 10s 💬 |
 
 ## Project Structure
 
@@ -228,6 +229,7 @@ pi-hub/
 │   ├── turn-counter-plugin.js # Plugin example: turn counter
 │   ├── clock-plugin.js       # Plugin example: clock
 │   └── context-emoji-plugin.js # Plugin example: emoji context
+│   └── quote-plugin.js       # Plugin example: random quote
 ├── docs/
 │   └── pi-hud.md             # Detailed documentation
 ├── tsconfig.json
