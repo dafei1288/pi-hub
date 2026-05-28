@@ -183,6 +183,57 @@ Configure via `.pi/pi-hud.json` (project) or `~/.pi/agent/pi-hud.json` (global):
 
 See [examples/pi-hud.json](examples/pi-hud.json) for a full configuration example.
 
+## Grid Layout
+
+Default single-column mode (no `layout`) behaves exactly like before. Set `layout` to enable multi-column grid:
+
+```jsonc
+{
+  // Column counts per line, max 5 lines, each 1/2/4 columns
+  "layout": [1, 2, 2],
+
+  // Pin elements to specific cells { line: 0-based, col: 0-based }
+  // Unlisted elements auto-distribute left-to-right, top-to-bottom
+  "placement": {
+    "tokens":   { "line": 1, "col": 0 },
+    "cost":     { "line": 1, "col": 0 },
+    "toolStats": { "line": 1, "col": 1 },
+    "lastInput": { "line": 2, "col": 0 },
+    "plugin:random-quote": { "line": 2, "col": 1 }
+  }
+}
+```
+
+**Rendered output** (`layout: [1, 2, 2]`):
+
+```
+Line 1 (full-width):
+[claude-sonnet-4-6] pi-hub git:(main) · medium    [████░░] 39%    ⏱ 21m
+
+Line 2 (2 columns):
+AGENTS.md · ↑12.5k ↓3.2k          │  ✓ Grep ×10 · ✓ Bash ×3
+
+Line 3 (2 columns):
+▸ how to build a REST API with auth? │  💬 The best way to predict the future...
+```
+
+**5-line dashboard** (`layout: [1, 2, 2, 2, 4]`, up to 4×5=20 cells):
+
+```
+Line 1: [full]   Model + Project + Progress + Elapsed
+Line 2: [2-col]  Status info    │  Resource counts
+Line 3: [2-col]  Tool stats     │  Running state
+Line 4: [2-col]  Last input     │  💬 Quote
+Line 5: [4-col]  col0 │ col1 │ col2 │ col3
+```
+
+**Layout demo files:**
+
+| File | Description |
+|------|-------------|
+| [examples/layout-2col-demo.json](examples/layout-2col-demo.json) | 2-column layout |
+| [examples/layout-dashboard-demo.json](examples/layout-dashboard-demo.json) | 5-line dashboard layout |
+
 ## Plugin System
 
 Users can write custom plugins to add any content to the HUD.
@@ -194,8 +245,9 @@ Place plugins in `.pi/pi-hud-plugins/*.js` (project) or `~/.pi/agent/pi-hub-plug
 ```js
 module.exports = {
   name: "my-plugin",        // Unique name
-  target: "line2",         // "line1" | "line2" | "line3"
+  target: "line2",         // "line1" | "line2" | "line3" | "line4" | "line5"
   order: 100,              // Sort order, lower = earlier
+  col: 0,                  // Optional: column index in grid mode
 
   render(ctx, theme, width) {
     // ctx: all HUD data
@@ -221,17 +273,19 @@ module.exports = {
 ```
 pi-hub/
 ├── extensions/
-│   └── pi-hud.ts            # Extension source code
+│   └── pi-hud.ts                  # Extension source code
 ├── scripts/
-│   └── install.js           # Installation script
+│   └── install.js                 # Installation script
 ├── examples/
-│   ├── pi-hud.json           # Configuration example
-│   ├── turn-counter-plugin.js # Plugin example: turn counter
-│   ├── clock-plugin.js       # Plugin example: clock
-│   └── context-emoji-plugin.js # Plugin example: emoji context
-│   └── quote-plugin.js       # Plugin example: random quote
+│   ├── pi-hud.json                 # Config example (all fields)
+│   ├── layout-2col-demo.json       # Layout Demo: 2-column
+│   ├── layout-dashboard-demo.json  # Layout Demo: 5-line dashboard
+│   ├── turn-counter-plugin.js      # Plugin: turn counter
+│   ├── clock-plugin.js             # Plugin: clock
+│   ├── context-emoji-plugin.js     # Plugin: emoji context
+│   └── quote-plugin.js             # Plugin: random quote
 ├── docs/
-│   └── pi-hud.md             # Detailed documentation
+│   └── pi-hud.md                   # Detailed documentation
 ├── tsconfig.json
 ├── package.json
 ├── README.md

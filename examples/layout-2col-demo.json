@@ -1,0 +1,23 @@
+{
+  "// Pi HUD Grid Layout Demo": "",
+  "// Copy to .pi/pi-hud.json to try the 2-column dashboard layout": "",
+
+  "tokenMode": "always",
+
+  "layout": [1, 2, 2],
+
+  "placement": {
+    "contextFiles": { "line": 1, "col": 0 },
+    "skills":      { "line": 1, "col": 0 },
+    "extTools":    { "line": 1, "col": 0 },
+    "extCmds":     { "line": 1, "col": 0 },
+    "tokens":      { "line": 1, "col": 0 },
+    "cost":        { "line": 1, "col": 0 },
+    "toolStats":       { "line": 1, "col": 1 },
+    "runningTools":    { "line": 1, "col": 1 },
+    "runningAgents":   { "line": 1, "col": 1 },
+    "lastInput":       { "line": 2, "col": 0 },
+    "historyHint":     { "line": 2, "col": 0 },
+    "plugin:random-quote": { "line": 2, "col": 1 }
+  }
+}

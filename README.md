@@ -183,6 +183,57 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ◐ Edit (12s) · ◐
 
 完整配置示例见 [examples/pi-hud.json](examples/pi-hud.json)。
 
+## 网格布局
+
+默认单栏模式（不设 `layout`）和现在完全一样。设置 `layout` 后启用网格分栏：
+
+```jsonc
+{
+  // 每行列数数组，最多 5 行，每行 1/2/4 列
+  "layout": [1, 2, 2],
+
+  // 把元素钉到指定格子 { line: 行号(0起), col: 列号(0起) }
+  // 未列出的元素自动从左到右、从上到下填充
+  "placement": {
+    "tokens":   { "line": 1, "col": 0 },
+    "cost":     { "line": 1, "col": 0 },
+    "toolStats": { "line": 1, "col": 1 },
+    "lastInput": { "line": 2, "col": 0 },
+    "plugin:random-quote": { "line": 2, "col": 1 }
+  }
+}
+```
+
+**渲染效果**（`layout: [1, 2, 2]`）：
+
+```
+Line 1 (全宽):
+[claude-sonnet-4-6] pi-hub git:(main) · medium    [████░░] 39%    ⏱ 21m
+
+Line 2 (2列):
+AGENTS.md · ↑12.5k ↓3.2k          │  ✓ Grep ×10 · ✓ Bash ×3
+
+Line 3 (2列):
+▸ how to build a REST API with auth? │  💬 温故而知新，可以为师矣。—— 孔子
+```
+
+**5 行仪表盘**（`layout: [1, 2, 2, 2, 4]`，最多 4×5=20 格）：
+
+```
+Line 1: [全宽]  模型 + 项目 + 进度条 + 时长
+Line 2: [2列]   状态信息     │  资源统计
+Line 3: [2列]   工具统计     │  运行状态
+Line 4: [2列]   最近输入     │  💬 谏言
+Line 5: [4列]   col0 │ col1 │ col2 │ col3
+```
+
+**布局 Demo 文件：**
+
+| 文件 | 说明 |
+|------|------|
+| [examples/layout-2col-demo.json](examples/layout-2col-demo.json) | 2 列分栏布局 |
+| [examples/layout-dashboard-demo.json](examples/layout-dashboard-demo.json) | 5 行仪表盘布局 |
+
 ## 插件系统
 
 用户可以编写自定义插件，向 HUD 添加任何内容。
@@ -194,8 +245,9 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ◐ Edit (12s) · ◐
 ```js
 module.exports = {
   name: "my-plugin",        // 唯一名称
-  target: "line2",         // "line1" | "line2" | "line3"
+  target: "line2",         // "line1" | "line2" | "line3" | "line4" | "line5"
   order: 100,              // 排序，越小越靠前
+  col: 0,                  // 可选：网格模式下指定列号
 
   render(ctx, theme, width) {
     // ctx: 包含所有 HUD 数据
@@ -221,17 +273,19 @@ module.exports = {
 ```
 pi-hub/
 ├── extensions/
-│   └── pi-hud.ts            # 扩展源码
+│   └── pi-hud.ts                  # 扩展源码
 ├── scripts/
-│   └── install.js           # 安装脚本
+│   └── install.js                 # 安装脚本
 ├── examples/
-│   ├── pi-hud.json           # 配置示例
-│   ├── turn-counter-plugin.js # 插件示例：轮次计数
-│   ├── clock-plugin.js       # 插件示例：时钟
-│   └── context-emoji-plugin.js # 插件示例：emoji context
-│   └── quote-plugin.js       # 插件示例：随机谏言
+│   ├── pi-hud.json                 # 配置示例（全字段）
+│   ├── layout-2col-demo.json       # 布局 Demo：2 列分栏
+│   ├── layout-dashboard-demo.json  # 布局 Demo：5 行仪表盘
+│   ├── turn-counter-plugin.js      # 插件：轮次计数
+│   ├── clock-plugin.js             # 插件：时钟
+│   ├── context-emoji-plugin.js     # 插件：emoji context
+│   └── quote-plugin.js             # 插件：随机谏言
 ├── docs/
-│   └── pi-hud.md             # 详细文档
+│   └── pi-hud.md                   # 详细文档
 ├── tsconfig.json
 ├── package.json
 ├── README.md

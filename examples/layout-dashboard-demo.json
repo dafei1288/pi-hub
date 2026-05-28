@@ -1,0 +1,31 @@
+{
+  "// Pi HUD Dashboard Demo — 5 lines, up to 4 columns": "",
+  "// Copy to .pi/pi-hud.json to try the full dashboard layout": "",
+
+  "tokenMode": "always",
+
+  "layout": [1, 2, 2, 2, 4],
+
+  "placement": {
+    "// Line 1 (full-width): model + project + git + contextBar + elapsed": "",
+    "// Line 2 (2-col): tokens+cost | skills+extTools": "",
+    "tokens":   { "line": 1, "col": 0 },
+    "cost":     { "line": 1, "col": 0 },
+    "skills":   { "line": 1, "col": 1 },
+    "extTools": { "line": 1, "col": 1 },
+    "extCmds":  { "line": 1, "col": 1 },
+
+    "// Line 3 (2-col): toolStats | runningTools+runningAgents": "",
+    "toolStats":      { "line": 2, "col": 0 },
+    "runningTools":   { "line": 2, "col": 1 },
+    "runningAgents":  { "line": 2, "col": 1 },
+
+    "// Line 4 (2-col): lastInput | quote plugin": "",
+    "lastInput":  { "line": 3, "col": 0 },
+    "historyHint": { "line": 3, "col": 0 },
+    "plugin:random-quote": { "line": 3, "col": 1 },
+
+    "// Line 5 (4-col): context files spread across": "",
+    "contextFiles": { "line": 4, "col": 0 }
+  }
+}
