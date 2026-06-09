@@ -19,7 +19,6 @@
     "extensions": ["./extensions"]
   },
   "scripts": {
-    "check": "tsc --noEmit --skipLibCheck extensions/pi-hud.ts",
-    "prepublishOnly": "npm run check"
+    "check": "tsc --noEmit --skipLibCheck extensions/pi-hud.ts"
   }
 }
