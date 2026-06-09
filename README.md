@@ -1,6 +1,6 @@
-# Pi Hub — Pi HUD Extension
+# pi-agent-hud — Pi HUD Extension
 
-Pi HUD 是一个 [pi-coding-agent](https://github.com/nicholasgasior/pi) 的状态栏扩展，在终端底部实时显示会话信息。
+pi-agent-hud 是一个 [pi-coding-agent](https://github.com/nicholasgasior/pi) 的状态栏扩展，在终端底部实时显示会话信息。
 
 灵感来自 [claude-hud](https://github.com/jarrodwatts/claude-hud)。
 
@@ -20,15 +20,7 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ✓ Bash ×3 · ◐ E
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/dafei1288/pi-hub.git
-# 或放置到本地目录，如 ~/pi-hub
-
-# 2. 项目级安装（在目标项目根目录执行）
-node /path/to/pi-hub/scripts/install.js
-# 例如：node ~/pi-hub/scripts/install.js
-
-# 3. 全局安装（对所有项目生效）
-node ~/pi-hub/scripts/install.js --global
+pi install npm:pi-agent-hud
 ```
 
 ### 方式二：Claude / Pi 一键安装
@@ -36,36 +28,19 @@ node ~/pi-hub/scripts/install.js --global
 在 Claude 或 Pi 对话中直接说：
 
 ```
-请帮我安装 pi-hub 的 Pi HUD 扩展到当前项目
+请帮我安装 pi-agent-hud 扩展到当前项目
 ```
 
-Agent 会自动执行安装脚本。如需全局安装，可以说：
-
-```
-请帮我全局安装 pi-hub 的 Pi HUD 扩展
-```
-
-### 方式三：手动复制
+### 方式三：命令行临时加载
 
 ```bash
-mkdir -p .pi/extensions
-cp extensions/pi-hud.ts .pi/extensions/pi-hud.ts
-```
-
-### 方式四：命令行临时加载
-
-```bash
-pi -e /path/to/pi-hub/extensions/pi-hud.ts
+pi -e npm:pi-agent-hud
 ```
 
 ### 验证安装
 
 ```bash
-# 检查项目级安装
-ls .pi/extensions/pi-hud.ts
-
-# 检查全局安装
-ls ~/.pi/agent/extensions/pi-hud.ts
+pi list
 ```
 
 安装后重启 pi 或在会话中输入 `/reload` 即可激活。
@@ -209,7 +184,7 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ◐ Edit (12s) · ◐
 
 ```
 Line 1 (全宽):
-[claude-sonnet-4-6] pi-hub git:(main) · medium    [████░░] 39%    ⏱ 21m
+[claude-sonnet-4-6] pi-agent-hud git:(main) · medium    [████░░] 39%    ⏱ 21m
 
 Line 2 (2列):
 AGENTS.md · ↑12.5k ↓3.2k          │  ✓ Grep ×10 · ✓ Bash ×3
@@ -239,7 +214,7 @@ Line 5: [4列]   col0 │ col1 │ col2 │ col3
 
 用户可以编写自定义插件，向 HUD 添加任何内容。
 
-插件放置在 `.pi/pi-hud-plugins/*.js`（项目级）或 `~/.pi/agent/pi-hub-plugins/*.js`（全局）。
+插件放置在 `.pi/pi-hud-plugins/*.js`（项目级）或 `~/.pi/agent/pi-hud-plugins/*.js`（全局）。
 
 **插件接口：**
 
@@ -272,7 +247,7 @@ module.exports = {
 ## 项目结构
 
 ```
-pi-hub/
+pi-agent-hud/
 ├── extensions/
 │   └── pi-hud.ts                  # 扩展源码
 ├── scripts/

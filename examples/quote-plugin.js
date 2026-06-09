@@ -1,5 +1,5 @@
 /**
- * Pi HUD Plugin — 随机谏言 (Random Quote)
+ * pi-agent-hud Plugin — 随机谏言 (Random Quote)
  *
  * 每隔 10 秒从谏言库中随机选取一句显示在 HUD Line 3。
  *

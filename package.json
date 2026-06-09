@@ -1,13 +1,25 @@
 {
-  "name": "pi-hub",
+  "name": "pi-agent-hud",
   "version": "0.1.0",
-  "description": "Pi HUD - A status bar extension for pi-coding-agent, inspired by claude-hud (formerly jimpi)",
-  "private": true,
+  "description": "Pi HUD — real-time status bar extension for pi-coding-agent, inspired by claude-hud",
+  "keywords": ["pi-package", "pi", "pi-coding-agent", "hud", "statusbar", "extension"],
+  "license": "MIT",
+  "author": "dafei1288",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/dafei1288/pi-hub.git"
+  },
+  "files": ["extensions/", "examples/", "scripts/", "docs/", "README.md", "README_EN.md"],
+  "peerDependencies": {
+    "@mariozechner/pi-ai": "*",
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": ["./extensions"]
+  },
   "scripts": {
     "check": "tsc --noEmit --skipLibCheck extensions/pi-hud.ts",
-    "install:local": "node scripts/install.js",
-    "install:global": "node scripts/install.js --global"
-  },
-  "keywords": ["pi", "pi-coding-agent", "hud", "statusbar", "extension"],
-  "license": "MIT"
+    "prepublishOnly": "npm run check"
+  }
 }

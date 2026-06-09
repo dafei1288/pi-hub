@@ -1,5 +1,5 @@
 /**
- * Pi HUD Extension — claude-hud inspired status bar
+ * pi-agent-hud Extension — claude-hud inspired status bar
  *
  * Line 1: [model] project git:(main* ↑2)    [████████░░] 39%    ⏱ 21m
  * Line 2: AGENTS.md · skills x5 · ext x2 · ↑12.5k ↓3.2k · $0.042 · ✓ Grep x10
@@ -52,7 +52,7 @@ interface Placement {
 	col: number;
 }
 
-/** User configuration for Pi HUD */
+/** User configuration for pi-agent-hud */
 interface HudConfig {
 	/** Which elements to show. Defaults to all. */
 	enabled?: HudElement[];
@@ -701,6 +701,22 @@ export default function (pi: ExtensionAPI) {
 					// --- Line 1 elements ---
 					const line1Parts: string[] = [];
 					if (isEnabled("model")) line1Parts.push(theme.fg("accent", `[${modelId}]`));
+					// Rate limit after model, before project
+					if (isEnabled("rateLimit") && rateLimitInfo) {
+						const rl = rateLimitInfo;
+						const tokenPct = rl.tokenLimit > 0 ? Math.round((rl.tokenRemaining / rl.tokenLimit) * 100) : -1;
+						const reqPct = rl.requestLimit > 0 ? Math.round((rl.requestRemaining / rl.requestLimit) * 100) : -1;
+						const worstPct = tokenPct >= 0 && reqPct >= 0 ? Math.min(tokenPct, reqPct) : Math.max(tokenPct, reqPct);
+						if (worstPct >= 0) {
+							const pctStr = worstPct >= 100 ? "∞" : `${worstPct}%`;
+							const icon = worstPct > 50 ? "⚡" : worstPct > 20 ? "⚡" : "🪫";
+							const color: "success" | "warning" | "error" = worstPct > 50 ? "success" : worstPct > 20 ? "warning" : "error";
+							const detail = rl.tokenLimit > 0 ? `${formatTokens(rl.tokenRemaining)}/${formatTokens(rl.tokenLimit)}` : "";
+							const ageMs = Date.now() - rl.capturedAt;
+							const ageStr = ageMs < 60_000 ? `${Math.round(ageMs / 1000)}s ago` : ageMs < 3_600_000 ? `${Math.round(ageMs / 60_000)}m ago` : `${Math.round(ageMs / 3_600_000)}h ago`;
+							line1Parts.push(`${theme.fg(color, `${icon} ${pctStr}`)}${detail ? theme.fg("dim", ` ${detail}`) : ""}${theme.fg("dim", ` ${ageStr}`)}`);
+						}
+					}
 					if (isEnabled("project")) line1Parts.push(theme.fg("text", projectName));
 					if (isEnabled("git") && branch) line1Parts.push(theme.fg("dim", `git:(${branch})`));
 					if (isEnabled("thinking") && model?.reasoning && thinking !== "off") {
@@ -797,27 +813,7 @@ export default function (pi: ExtensionAPI) {
 							render: () => theme.fg("dim", `$${totalCost.toFixed(3)}`),
 						});
 					}
-				if (isEnabled("rateLimit") && rateLimitInfo) {
-					const rl = rateLimitInfo;
-					const tokenPct = rl.tokenLimit > 0 ? Math.round((rl.tokenRemaining / rl.tokenLimit) * 100) : -1;
-					const reqPct = rl.requestLimit > 0 ? Math.round((rl.requestRemaining / rl.requestLimit) * 100) : -1;
-					// Show the most constrained dimension
-					const worstPct = tokenPct >= 0 && reqPct >= 0 ? Math.min(tokenPct, reqPct) : Math.max(tokenPct, reqPct);
 
-					if (worstPct >= 0) {
-						line2Items.push({
-							key: "rateLimit", defaultLine: 1, order: 6,
-							fixedCol: config.placement?.rateLimit?.col,
-							render: () => {
-								const pctStr = worstPct >= 100 ? "∞" : `${worstPct}%`;
-								const icon = worstPct > 50 ? "⚡" : worstPct > 20 ? "⚡" : "🪫";
-								const color: "success" | "warning" | "error" = worstPct > 50 ? "success" : worstPct > 20 ? "warning" : "error";
-								const detail = rl.tokenLimit > 0 ? `${formatTokens(rl.tokenRemaining)}/${formatTokens(rl.tokenLimit)}` : "";
-								return `${theme.fg(color, `${icon} ${pctStr}`)}${detail ? theme.fg("dim", ` ${detail}`) : ""}`;
-							},
-						});
-					}
-				}
 					if (isEnabled("toolStats")) {
 						const sortedTools = Array.from(toolCounts.entries()).sort(([, a], [, b]) => b - a);
 						for (const [name, count] of sortedTools) {

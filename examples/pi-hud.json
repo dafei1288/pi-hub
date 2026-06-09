@@ -1,5 +1,5 @@
 {
-  "// === Pi HUD Configuration ===": "",
+  "// === pi-agent-hud Configuration ===": "",
   "// Place in .pi/pi-hud.json (project) or ~/.pi/agent/pi-hud.json (global)": "",
 
   "// === Token Display ===": "",

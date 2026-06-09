@@ -1,0 +1,8 @@
+.git/
+.pi/
+node_modules/
+docs/plans/
+docs/posters/
+docs/demo.png
+nul
+tsconfig.json

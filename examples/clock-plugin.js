@@ -1,5 +1,5 @@
 /**
- * Example Pi HUD Plugin — Current time display.
+ * Example pi-agent-hud Plugin — Current time display.
  *
  * Place in .pi/pi-hud-plugins/clock.js or ~/.pi/agent/pi-hub-plugins/clock.js
  *

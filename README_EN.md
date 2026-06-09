@@ -1,6 +1,6 @@
-# Pi Hub — Pi HUD Extension
+# pi-agent-hud — Pi HUD Extension
 
-Pi HUD is a status bar extension for [pi-coding-agent](https://github.com/nicholasgasior/pi) that displays real-time session information at the bottom of the terminal.
+pi-agent-hud is a status bar extension for [pi-coding-agent](https://github.com/nicholasgasior/pi) that displays real-time session information at the bottom of the terminal.
 
 Inspired by [claude-hud](https://github.com/jarrodwatts/claude-hud).
 
@@ -19,16 +19,7 @@ AGENTS.md · skills x5 · ext.tools x2 · ✓ Grep ×10 · ✓ Bash ×3 · ◐ E
 ### Option 1: Clone & Install (Recommended)
 
 ```bash
-# 1. Clone the repository
-git clone https://github.com/dafei1288/pi-hub.git
-# Or place it in a local directory, e.g. ~/pi-hub
-
-# 2. Project-level installation (run in the target project root)
-node /path/to/pi-hub/scripts/install.js
-# Example: node ~/pi-hub/scripts/install.js
-
-# 3. Global installation (applies to all projects)
-node ~/pi-hub/scripts/install.js --global
+pi install npm:pi-agent-hud
 ```
 
 ### Option 2: Claude / Pi One-Click Install
@@ -36,36 +27,19 @@ node ~/pi-hub/scripts/install.js --global
 In a Claude or Pi conversation, simply say:
 
 ```
-Please install the pi-hub Pi HUD extension to the current project
+Please install the pi-agent-hud extension to the current project
 ```
 
-The agent will execute the installation script automatically. For global installation:
-
-```
-Please install the pi-hub Pi HUD extension globally
-```
-
-### Option 3: Manual Copy
+### Option 3: CLI Temporary Load
 
 ```bash
-mkdir -p .pi/extensions
-cp extensions/pi-hud.ts .pi/extensions/pi-hud.ts
-```
-
-### Option 4: CLI Temporary Load
-
-```bash
-pi -e /path/to/pi-hub/extensions/pi-hud.ts
+pi -e npm:pi-agent-hud
 ```
 
 ### Verify Installation
 
 ```bash
-# Check project-level installation
-ls .pi/extensions/pi-hud.ts
-
-# Check global installation
-ls ~/.pi/agent/extensions/pi-hud.ts
+pi list
 ```
 
 After installation, restart pi or type `/reload` in a session to activate.
@@ -209,7 +183,7 @@ Default single-column mode (no `layout`) behaves exactly like before. Set `layou
 
 ```
 Line 1 (full-width):
-[claude-sonnet-4-6] pi-hub git:(main) · medium    [████░░] 39%    ⏱ 21m
+[claude-sonnet-4-6] pi-agent-hud git:(main) · medium    [████░░] 39%    ⏱ 21m
 
 Line 2 (2 columns):
 AGENTS.md · ↑12.5k ↓3.2k          │  ✓ Grep ×10 · ✓ Bash ×3
@@ -272,7 +246,7 @@ module.exports = {
 ## Project Structure
 
 ```
-pi-hub/
+pi-agent-hud/
 ├── extensions/
 │   └── pi-hud.ts                  # Extension source code
 ├── scripts/
@@ -302,6 +276,14 @@ Runtime depends on the pi-coding-agent Extension API:
 - `@mariozechner/pi-tui`
 
 No additional npm packages are required — extensions are loaded directly by the pi runtime.
+
+<a href="https://www.star-history.com/?repos=dafei1288%2Fpi-hub&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=dafei1288/pi-hub&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=dafei1288/pi-hub&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=dafei1288/pi-hub&type=date&legend=top-left" />
+ </picture>
+</a>
 
 ## License
 

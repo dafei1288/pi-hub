@@ -1,5 +1,5 @@
 /**
- * Example Pi HUD Plugin — Custom "turn count" display.
+ * Example pi-agent-hud Plugin — Custom "turn count" display.
  *
  * Place in .pi/pi-hud-plugins/turn-counter.js or ~/.pi/agent/pi-hud-plugins/turn-counter.js
  *

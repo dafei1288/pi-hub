@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Install script for Pi HUD extension.
+ * Install script for pi-agent-hud extension.
  *
  * Usage:
  *   node scripts/install.js          # Install to current project

@@ -1,5 +1,5 @@
 /**
- * Example Pi HUD Plugin — Context bar emoji style.
+ * Example pi-agent-hud Plugin — Context bar emoji style.
  *
  * Place in .pi/pi-hud-plugins/context-emoji.js
  *
