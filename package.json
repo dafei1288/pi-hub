@@ -7,7 +7,7 @@
   "author": "dafei1288",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dafei1288/pi-hub.git"
+    "url": "https://github.com/dafei1288/pi-hud.git"
   },
   "files": ["extensions/", "examples/", "scripts/", "docs/", "README.md", "README_EN.md"],
   "peerDependencies": {
