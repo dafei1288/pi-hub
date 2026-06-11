@@ -6,7 +6,7 @@
  * Line 3: ▸ how to build a REST API with authentication?
  *
  * Ctrl+H: Open session input history overlay
- * Ctrl+Alt+P: Show agent execution plan overlay
+ * Ctrl+J: Show agent execution plan overlay
  *
  * Configuration: .pi/pi-agent-hud.json or ~/.pi/agent/pi-agent-hud.json
  * Extensible: users can register custom HUD items via pi-agent-hud-plugins/
@@ -274,8 +274,13 @@ function loadPlugins(cwd: string): HudPlugin[] {
 // History Overlay Component
 // ============================================================================
 
-class HistoryOverlay implements Component {
-	private items: string[];
+class UnifiedHudOverlay implements Component {
+	private historyItems: string[];
+	private task: string;
+	private planSteps: PlanStep[];
+	private subagents: SubagentTask[];
+	private turnCount: number;
+	private tab: "history" | "plan";
 	private selected: number;
 	private scrollOffset: number;
 	private maxVisible: number;
@@ -284,38 +289,56 @@ class HistoryOverlay implements Component {
 	private done: (result: string | undefined) => void;
 
 	constructor(
-		items: string[],
+		historyItems: string[],
+		task: string,
+		planSteps: PlanStep[],
+		subagents: SubagentTask[],
+		turnCount: number,
 		theme: any,
 		tui: TUI,
 		done: (result: string | undefined) => void,
 	) {
-		this.items = items;
+		this.historyItems = historyItems;
+		this.task = task;
+		this.planSteps = planSteps;
+		this.subagents = subagents;
+		this.turnCount = turnCount;
+		this.tab = "history";
 		this.theme = theme;
 		this.tui = tui;
 		this.done = done;
 		this.selected = 0;
 		this.scrollOffset = 0;
-		this.maxVisible = Math.min(items.length, 10);
+		this.maxVisible = Math.min(historyItems.length, 10);
 	}
 
 	render(width: number): string[] {
+		return this.tab === "history"
+			? this.renderHistory(width)
+			: this.renderPlan(width);
+	}
+
+	private renderHistory(width: number): string[] {
 		const lines: string[] = [];
 		const innerW = width - 2;
 
-		const titleText = " Session History ";
-		const titlePadLen = Math.max(0, innerW - titleText.length);
+		// Title bar with tab indicators
+		const historyTab = this.theme.fg("accent", "[ History ]");
+		const planTab = this.theme.fg("dim", " Plan (Tab) ");
+		const titleBase = `${historyTab}${planTab}`;
+		const titlePadLen = Math.max(0, innerW - titleBase.length);
 		lines.push(
 			this.theme.fg("dim", "┌") +
-			this.theme.fg("accent", titleText) +
+			titleBase +
 			this.theme.fg("dim", "─".repeat(titlePadLen) + "┐"),
 		);
 
 		const prefixW = 3;
 		const itemContentW = innerW - prefixW;
-		const end = Math.min(this.scrollOffset + this.maxVisible, this.items.length);
+		const end = Math.min(this.scrollOffset + this.maxVisible, this.historyItems.length);
 
 		for (let i = this.scrollOffset; i < end; i++) {
-			const raw = this.items[i].replace(/\n/g, " ").replace(/\s+/g, " ").trim();
+			const raw = this.historyItems[i].replace(/\n/g, " ").replace(/\s+/g, " ").trim();
 			const isSel = i === this.selected;
 
 			const display = truncateToWidth(raw, itemContentW, "..");
@@ -329,7 +352,7 @@ class HistoryOverlay implements Component {
 			);
 		}
 
-		const footerText = " ↑↓ scroll · Enter select · Esc close ";
+		const footerText = " ↑↓ scroll · Enter select · Tab plan · Esc close ";
 		const footerPadLen = Math.max(0, innerW - footerText.length);
 		lines.push(
 			this.theme.fg("dim", "├") +
@@ -340,85 +363,18 @@ class HistoryOverlay implements Component {
 		return lines;
 	}
 
-	handleInput(data: string): void {
-		const kb = getKeybindings();
-
-		if (kb.matches(data, "tui.select.up") || data === "k") {
-			if (this.selected > 0) {
-				this.selected--;
-				if (this.selected < this.scrollOffset) this.scrollOffset--;
-				this.tui.requestRender();
-			}
-		} else if (kb.matches(data, "tui.select.down") || data === "j") {
-			if (this.selected < this.items.length - 1) {
-				this.selected++;
-				if (this.selected >= this.scrollOffset + this.maxVisible) this.scrollOffset++;
-				this.tui.requestRender();
-			}
-		} else if (kb.matches(data, "tui.select.confirm") || data === "\n") {
-			this.done(this.items[this.selected]);
-		} else if (kb.matches(data, "tui.select.cancel")) {
-			this.done(undefined);
-		}
-	}
-
-	invalidate() {}
-	dispose() {}
-}
-
-// ============================================================================
-// Plan Overlay Component
-// ============================================================================
-
-interface PlanStep {
-	text: string;
-	done: boolean;
-	toolName?: string;
-}
-
-interface SubagentTask {
-	task: string;
-	status: "running" | "completed";
-	startTime: number;
-}
-
-class PlanOverlay implements Component {
-	private steps: PlanStep[];
-	private subagents: SubagentTask[];
-	private task: string;
-	private turnCount: number;
-	private theme: any;
-	private tui: TUI;
-	private done: () => void;
-
-	constructor(
-		task: string,
-		steps: PlanStep[],
-		subagents: SubagentTask[],
-		turnCount: number,
-		theme: any,
-		tui: TUI,
-		done: () => void,
-	) {
-		this.task = task;
-		this.steps = steps;
-		this.subagents = subagents;
-		this.turnCount = turnCount;
-		this.theme = theme;
-		this.tui = tui;
-		this.done = done;
-	}
-
-	render(width: number): string[] {
+	private renderPlan(width: number): string[] {
 		const lines: string[] = [];
 		const innerW = width - 2;
 
-		// Title
-		const titleText = " Agent Execution Plan ";
-		const titlePadLen = Math.max(0, innerW - titleText.length);
+		// Title bar with tab indicators
+		const historyTab = this.theme.fg("dim", " History (Tab) ");
+		const planTab = this.theme.fg("accent", "[ Plan ]");
+		const titleBase = `${historyTab}${planTab}`;
+		const titlePadLen = Math.max(0, innerW - titleBase.length);
 		lines.push(
 			this.theme.fg("dim", "┌") +
-			this.theme.fg("accent", titleText) +
+			titleBase +
 			this.theme.fg("dim", "─".repeat(titlePadLen) + "┐"),
 		);
 
@@ -431,28 +387,48 @@ class PlanOverlay implements Component {
 			this.theme.fg("dim", " │"),
 		);
 
-		// Stats line
-		const doneCount = this.steps.filter((s) => s.done).length;
-		const statsText = `📊 ${doneCount}/${this.steps.length} steps · ${this.turnCount} turns · ${this.subagents.filter((s) => s.status === "running").length} subagents`;
+		// Stats
+		const doneCount = this.planSteps.filter((s) => s.done).length;
+		const runningCount = this.subagents.filter((s) => s.status === "running").length;
+		const completedSA = this.subagents.filter((s) => s.status === "completed").length;
+		let statsText = "";
+		if (this.planSteps.length > 0) {
+			statsText = `📊 ${doneCount}/${this.planSteps.length} steps · ${this.turnCount} turns`;
+			if (runningCount > 0) statsText += ` · ⚡ ${runningCount} subagent${runningCount > 1 ? "s" : ""}`;
+		} else if (this.subagents.length > 0) {
+			statsText = `⚡ ${completedSA}/${this.subagents.length} subagents · ${this.turnCount} turns`;
+		} else {
+			statsText = `📋 ${this.turnCount} turn${this.turnCount > 1 ? "s" : ""}`;
+		}
 		lines.push(
 			this.theme.fg("dim", "│  ") +
 			this.theme.fg("dim", padToWidth(statsText, innerW - 4)) +
 			this.theme.fg("dim", " │"),
 		);
 
-		// Separator
-		lines.push(this.theme.fg("dim", "├" + "─".repeat(innerW) + "┤"));
-
-		// Steps
+		// Steps / content section
 		const maxStepW = innerW - 8;
-		for (const step of this.steps) {
-			const icon = step.done ? this.theme.fg("success", "✓") : this.theme.fg("dim", "○");
-			const stepText = truncateToWidth(step.text, maxStepW, "…");
-			const style = step.done ? "dim" : "text";
+		if (this.planSteps.length > 0) {
+			lines.push(this.theme.fg("dim", "├" + "─".repeat(innerW) + "┤"));
+			for (const step of this.planSteps) {
+				const icon = step.done ? this.theme.fg("success", "✓") : this.theme.fg("dim", "○");
+				const stepText = truncateToWidth(step.text, maxStepW, "…");
+				const style = step.done ? "dim" : "text";
+				lines.push(
+					this.theme.fg("dim", "│  ") +
+					icon + " " +
+					this.theme.fg(style, padToWidth(stepText, maxStepW - 2)) +
+					this.theme.fg("dim", " │"),
+				);
+			}
+		} else if (this.subagents.length === 0) {
+			lines.push(this.theme.fg("dim", "├" + "─".repeat(innerW) + "┤"));
+			const taskHint = this.task.length > 0
+				? `📋 ${truncateToWidth(this.task, innerW - 14, "…")}`
+				: "📋 No structured plan detected";
 			lines.push(
 				this.theme.fg("dim", "│  ") +
-				icon + " " +
-				this.theme.fg(style, padToWidth(stepText, maxStepW - 2)) +
+				this.theme.fg("text", padToWidth(taskHint, innerW - 4)) +
 				this.theme.fg("dim", " │"),
 			);
 		}
@@ -482,8 +458,7 @@ class PlanOverlay implements Component {
 			}
 		}
 
-		// Footer
-		const footerText = " Esc / Ctrl+C close ";
+		const footerText = " Esc close ";
 		const footerPadLen = Math.max(0, innerW - footerText.length);
 		lines.push(
 			this.theme.fg("dim", "└") +
@@ -496,13 +471,65 @@ class PlanOverlay implements Component {
 
 	handleInput(data: string): void {
 		const kb = getKeybindings();
+
+		// Tab toggles between history and plan
+		if (data === "\t" || data === "tab" || kb.matches(data, "tui.input.tab")) {
+			this.tab = this.tab === "history" ? "plan" : "history";
+			this.tui.requestRender();
+			return;
+		}
+
+		if (this.tab === "history") {
+			this.handleHistoryInput(data, kb);
+		} else {
+			this.handlePlanInput(data, kb);
+		}
+	}
+
+	private handleHistoryInput(data: string, kb: any): void {
+		if (kb.matches(data, "tui.select.up") || data === "k") {
+			if (this.selected > 0) {
+				this.selected--;
+				if (this.selected < this.scrollOffset) this.scrollOffset--;
+				this.tui.requestRender();
+			}
+		} else if (kb.matches(data, "tui.select.down") || data === "j") {
+			if (this.selected < this.historyItems.length - 1) {
+				this.selected++;
+				if (this.selected >= this.scrollOffset + this.maxVisible) this.scrollOffset++;
+				this.tui.requestRender();
+			}
+		} else if (kb.matches(data, "tui.select.confirm") || data === "\n") {
+			this.done(this.historyItems[this.selected]);
+		} else if (kb.matches(data, "tui.select.cancel")) {
+			this.done(undefined);
+		}
+	}
+
+	private handlePlanInput(data: string, kb: any): void {
 		if (kb.matches(data, "tui.select.cancel")) {
-			this.done();
+			this.done(undefined);
 		}
 	}
 
 	invalidate() {}
 	dispose() {}
+}
+
+// ============================================================================
+// Plan Overlay Component
+// ============================================================================
+
+interface PlanStep {
+	text: string;
+	done: boolean;
+	toolName?: string;
+}
+
+interface SubagentTask {
+	task: string;
+	status: "running" | "completed";
+	startTime: number;
 }
 
 // ============================================================================
@@ -731,27 +758,28 @@ export default function (pi: ExtensionAPI) {
 		}
 	}
 
-	// ---- Register Ctrl+H shortcut ----
+	// ---- Register Ctrl+H shortcut (History + Plan tabs) ----
 	pi.registerShortcut("ctrl+h", {
-		description: "Browse session input history",
+		description: "Browse session history and agent plan",
 		handler: async (ctx) => {
 			if (!ctx.hasUI) return;
-			if (inputHistory.length === 0) {
-				ctx.ui.notify("No input history yet", "info");
+			if (inputHistory.length === 0 && planSteps.length === 0 && subagentTasks.length === 0 && turnCount === 0) {
+				ctx.ui.notify("No history or plan data yet", "info");
 				return;
 			}
 
 			const history = [...inputHistory].reverse();
+			const task = lastUserInput || inputHistory[inputHistory.length - 1] || "(no task)";
 
 			const selected = await ctx.ui.custom<string | undefined>(
 				(tui, theme, _keybindings, done) => {
-					return new HistoryOverlay(history, theme, tui, done);
+					return new UnifiedHudOverlay(history, task, planSteps, subagentTasks, turnCount, theme, tui, done);
 				},
 				{
 					overlay: true,
 					overlayOptions: {
 						width: "80%",
-						maxHeight: "50%",
+						maxHeight: "60%",
 						anchor: "bottom-center",
 						offsetY: -3,
 					},
@@ -761,33 +789,6 @@ export default function (pi: ExtensionAPI) {
 			if (selected) {
 				ctx.ui.setEditorText(selected);
 			}
-		},
-	});
-
-	// ---- Register Ctrl+Alt+P shortcut (Plan overlay) ----
-	pi.registerShortcut("ctrl+alt+p", {
-		description: "Show agent execution plan",
-		handler: async (ctx) => {
-			if (!ctx.hasUI) return;
-			const task = lastUserInput || inputHistory[inputHistory.length - 1] || "(no task)";
-			if (planSteps.length === 0 && subagentTasks.length === 0 && turnCount === 0) {
-				ctx.ui.notify("No plan data yet", "info");
-				return;
-			}
-			await ctx.ui.custom<void>(
-				(tui, theme, _keybindings, done) => {
-					return new PlanOverlay(task, planSteps, subagentTasks, turnCount, theme, tui, done);
-				},
-				{
-					overlay: true,
-					overlayOptions: {
-						width: "70%",
-						maxHeight: "70%",
-						anchor: "bottom-center",
-						offsetY: -3,
-					},
-				},
-			);
 		},
 	});
 
@@ -1037,15 +1038,19 @@ export default function (pi: ExtensionAPI) {
 					let planText = "";
 					if (planSteps.length > 0) {
 						planText += theme.fg("accent", `📋 ${doneCount}/${planSteps.length}`);
+						if (runningSA > 0) planText += theme.fg("warning", ` ⚡${runningSA}`);
+						planText += theme.fg("dim", ` · ${turnCount}t`);
 					} else if (runningSA > 0) {
 						planText += theme.fg("warning", `⚡ ${runningSA} subagent${runningSA > 1 ? "s" : ""}`);
-					} else if (turnCount > 0) {
-						planText += theme.fg("dim", `📋 ${turnCount} turn${turnCount > 1 ? "s" : ""}`);
+						planText += theme.fg("dim", ` · ${turnCount}t`);
+					} else {
+						// No plan, no subagents: show task summary + turns
+						const task = lastUserInput || "";
+						const shortTask = task.length > 20 ? task.slice(0, 17) + "…" : task;
+						planText += theme.fg("accent", `📋`);
+						if (shortTask) planText += theme.fg("dim", ` "${shortTask}"`);
+						planText += theme.fg("dim", ` · ${turnCount}t`);
 					}
-					if (runningSA > 0 && planSteps.length > 0) {
-						planText += theme.fg("warning", ` ⚡${runningSA}`);
-					}
-					planText += theme.fg("dim", ` · ${turnCount}t`);
 					line2Items.push({
 						key: "agentPlan", defaultLine: 1, order: 22,
 						fixedCol: config.placement?.agentPlan?.col,
