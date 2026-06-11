@@ -1,7 +1,7 @@
 /**
  * Example pi-agent-hud Plugin — Current time display.
  *
- * Place in .pi/pi-hud-plugins/clock.js or ~/.pi/agent/pi-hub-plugins/clock.js
+ * Place in .pi/pi-agent-hud-plugins/clock.js or ~/.pi/agent/pi-agent-hud-plugins/clock.js
  *
  * Shows: 🕐 14:32 on Line 1 (right side)
  */

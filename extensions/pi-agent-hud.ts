@@ -6,9 +6,10 @@
  * Line 3: ▸ how to build a REST API with authentication?
  *
  * Ctrl+H: Open session input history overlay
+ * Ctrl+Alt+P: Show agent execution plan overlay
  *
- * Configuration: .pi/pi-hud.json or ~/.pi/agent/pi-hud.json
- * Extensible: users can register custom HUD items via pi-hud-plugins/
+ * Configuration: .pi/pi-agent-hud.json or ~/.pi/agent/pi-agent-hud.json
+ * Extensible: users can register custom HUD items via pi-agent-hud-plugins/
  */
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -41,6 +42,7 @@ type HudElement =
 	| "toolStats"      // Line 2: ✓ Grep ×10
 	| "runningTools"   // Line 2: ◐ Edit (12s)
 	| "runningAgents"  // Line 2: ◐ agent (2m 15s)
+	| "agentPlan"     // Line 2: 📋 3/5 steps · 2 subagents
 	| "lastInput"      // Line 3: ▸ last user input
 	| "historyHint";   // Line 3: Ctrl+H:5
 
@@ -98,6 +100,12 @@ interface HudContext {
 	cwd: string;
 	sessionStart: number;
 	rateLimitInfo?: { provider: string; tokenRemaining: number; tokenLimit: number; requestRemaining: number; requestLimit: number; capturedAt: number };
+	/** Agent plan: parsed steps from assistant plan message */
+	planSteps: Array<{ text: string; done: boolean; toolName?: string }>;
+	/** Number of agent turns completed */
+	turnCount: number;
+	/** Active subagent tasks (delegated via subagent tool) */
+	subagentTasks: Array<{ task: string; status: "running" | "completed"; startTime: number }>;
 }
 
 /** A plugin that contributes custom content to HUD cells */
@@ -203,7 +211,7 @@ function ansiVisibleLen(s: string): number {
 	return s.replace(/\x1b\[[0-9;]*m/g, "").replace(/\x1b[^\x1b]*\x07/g, "").length;
 }
 
-/** Load and merge config from .pi/pi-hud.json (project) and ~/.pi/agent/pi-hud.json (global) */
+/** Load and merge config from .pi/pi-agent-hud.json (project) and ~/.pi/agent/pi-agent-hud.json (global) */
 function loadConfig(cwd: string): HudConfig {
 	const result: HudConfig = {
 		tokenMode: "always",
@@ -211,8 +219,8 @@ function loadConfig(cwd: string): HudConfig {
 	};
 
 	const paths = [
-		join((process.env.HOME || process.env.USERPROFILE) || "", ".pi", "agent", "pi-hud.json"),
-		join(cwd, ".pi", "pi-hud.json"),
+		join((process.env.HOME || process.env.USERPROFILE) || "", ".pi", "agent", "pi-agent-hud.json"),
+		join(cwd, ".pi", "pi-agent-hud.json"),
 	];
 
 	for (const p of paths) {
@@ -229,12 +237,12 @@ function loadConfig(cwd: string): HudConfig {
 	return result;
 }
 
-/** Load user plugins from .pi/pi-hud-plugins/*.ts or ~/.pi/agent/pi-hud-plugins/*.js */
+/** Load user plugins from .pi/pi-agent-hud-plugins/*.ts or ~/.pi/agent/pi-agent-hud-plugins/*.js */
 function loadPlugins(cwd: string): HudPlugin[] {
 	const plugins: HudPlugin[] = [];
 	const dirs = [
-		join((process.env.HOME || process.env.USERPROFILE) || "", ".pi", "agent", "pi-hud-plugins"),
-		join(cwd, ".pi", "pi-hud-plugins"),
+		join((process.env.HOME || process.env.USERPROFILE) || "", ".pi", "agent", "pi-agent-hud-plugins"),
+		join(cwd, ".pi", "pi-agent-hud-plugins"),
 	];
 
 	for (const dir of dirs) {
@@ -351,6 +359,145 @@ class HistoryOverlay implements Component {
 			this.done(this.items[this.selected]);
 		} else if (kb.matches(data, "tui.select.cancel")) {
 			this.done(undefined);
+		}
+	}
+
+	invalidate() {}
+	dispose() {}
+}
+
+// ============================================================================
+// Plan Overlay Component
+// ============================================================================
+
+interface PlanStep {
+	text: string;
+	done: boolean;
+	toolName?: string;
+}
+
+interface SubagentTask {
+	task: string;
+	status: "running" | "completed";
+	startTime: number;
+}
+
+class PlanOverlay implements Component {
+	private steps: PlanStep[];
+	private subagents: SubagentTask[];
+	private task: string;
+	private turnCount: number;
+	private theme: any;
+	private tui: TUI;
+	private done: () => void;
+
+	constructor(
+		task: string,
+		steps: PlanStep[],
+		subagents: SubagentTask[],
+		turnCount: number,
+		theme: any,
+		tui: TUI,
+		done: () => void,
+	) {
+		this.task = task;
+		this.steps = steps;
+		this.subagents = subagents;
+		this.turnCount = turnCount;
+		this.theme = theme;
+		this.tui = tui;
+		this.done = done;
+	}
+
+	render(width: number): string[] {
+		const lines: string[] = [];
+		const innerW = width - 2;
+
+		// Title
+		const titleText = " Agent Execution Plan ";
+		const titlePadLen = Math.max(0, innerW - titleText.length);
+		lines.push(
+			this.theme.fg("dim", "┌") +
+			this.theme.fg("accent", titleText) +
+			this.theme.fg("dim", "─".repeat(titlePadLen) + "┐"),
+		);
+
+		// Task
+		const taskDisplay = truncateToWidth(this.task, innerW - 7, "…");
+		lines.push(
+			this.theme.fg("dim", "│ ") +
+			this.theme.fg("accent", "🎯 ") +
+			this.theme.fg("text", padToWidth(taskDisplay, innerW - 4)) +
+			this.theme.fg("dim", " │"),
+		);
+
+		// Stats line
+		const doneCount = this.steps.filter((s) => s.done).length;
+		const statsText = `📊 ${doneCount}/${this.steps.length} steps · ${this.turnCount} turns · ${this.subagents.filter((s) => s.status === "running").length} subagents`;
+		lines.push(
+			this.theme.fg("dim", "│  ") +
+			this.theme.fg("dim", padToWidth(statsText, innerW - 4)) +
+			this.theme.fg("dim", " │"),
+		);
+
+		// Separator
+		lines.push(this.theme.fg("dim", "├" + "─".repeat(innerW) + "┤"));
+
+		// Steps
+		const maxStepW = innerW - 8;
+		for (const step of this.steps) {
+			const icon = step.done ? this.theme.fg("success", "✓") : this.theme.fg("dim", "○");
+			const stepText = truncateToWidth(step.text, maxStepW, "…");
+			const style = step.done ? "dim" : "text";
+			lines.push(
+				this.theme.fg("dim", "│  ") +
+				icon + " " +
+				this.theme.fg(style, padToWidth(stepText, maxStepW - 2)) +
+				this.theme.fg("dim", " │"),
+			);
+		}
+
+		// Subagents section
+		if (this.subagents.length > 0) {
+			const agentTitle = " Subagent Deployments ";
+			const agentPadLen = Math.max(0, innerW - agentTitle.length - 2);
+			lines.push(
+				this.theme.fg("dim", "├") +
+				this.theme.fg("warning", agentTitle) +
+				this.theme.fg("dim", "─".repeat(agentPadLen) + "┤"),
+			);
+			for (const sa of this.subagents) {
+				const icon = sa.status === "completed"
+					? this.theme.fg("success", "✓")
+					: this.theme.fg("warning", "◐");
+				const elapsed = formatDuration(Date.now() - sa.startTime);
+				const saText = truncateToWidth(`${sa.task}`, maxStepW - elapsed.length - 4, "…");
+				lines.push(
+					this.theme.fg("dim", "│  ") +
+					icon + " " +
+					this.theme.fg(sa.status === "running" ? "text" : "dim", padToWidth(saText, maxStepW - elapsed.length - 4)) +
+					" " + this.theme.fg("dim", elapsed) +
+					this.theme.fg("dim", " │"),
+				);
+			}
+		}
+
+		// Footer
+		const footerText = " Esc / Ctrl+C close ";
+		const footerPadLen = Math.max(0, innerW - footerText.length);
+		lines.push(
+			this.theme.fg("dim", "└") +
+			this.theme.fg("dim", footerText) +
+			this.theme.fg("dim", "─".repeat(footerPadLen) + "┘"),
+		);
+
+		return lines;
+	}
+
+	handleInput(data: string): void {
+		const kb = getKeybindings();
+		if (kb.matches(data, "tui.select.cancel")) {
+			this.done();
 		}
 	}
 
@@ -544,6 +691,12 @@ export default function (pi: ExtensionAPI) {
 	let lastUserInput = "";
 	const inputHistory: string[] = [];
 
+	// Agent plan tracking
+	let planSteps: PlanStep[] = [];
+	const subagentTasks: SubagentTask[] = [];
+	let turnCount = 0;
+	let hasPlanMessage = false; // Set after first assistant message
+
 	// Rate limit tracking — updated from after_provider_response headers
 	let rateLimitInfo: RateLimitInfo | undefined;
 
@@ -611,6 +764,33 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
+	// ---- Register Ctrl+Alt+P shortcut (Plan overlay) ----
+	pi.registerShortcut("ctrl+alt+p", {
+		description: "Show agent execution plan",
+		handler: async (ctx) => {
+			if (!ctx.hasUI) return;
+			const task = lastUserInput || inputHistory[inputHistory.length - 1] || "(no task)";
+			if (planSteps.length === 0 && subagentTasks.length === 0 && turnCount === 0) {
+				ctx.ui.notify("No plan data yet", "info");
+				return;
+			}
+			await ctx.ui.custom<void>(
+				(tui, theme, _keybindings, done) => {
+					return new PlanOverlay(task, planSteps, subagentTasks, turnCount, theme, tui, done);
+				},
+				{
+					overlay: true,
+					overlayOptions: {
+						width: "70%",
+						maxHeight: "70%",
+						anchor: "bottom-center",
+						offsetY: -3,
+					},
+				},
+			);
+		},
+	});
+
 	pi.on("session_start", async (_event, ctx) => {
 		sessionStart = Date.now();
 		toolCounts.clear();
@@ -618,6 +798,10 @@ export default function (pi: ExtensionAPI) {
 		agentEntries.length = 0;
 		lastUserInput = "";
 		inputHistory.length = 0;
+		planSteps = [];
+		subagentTasks.length = 0;
+		turnCount = 0;
+		hasPlanMessage = false;
 		rateLimitInfo = undefined;
 		cachedCwd = "";
 		refreshContextFiles(ctx.cwd);
@@ -691,6 +875,9 @@ export default function (pi: ExtensionAPI) {
 						lastUserInput,
 						cwd,
 						sessionStart,
+						planSteps,
+						turnCount,
+						subagentTasks,
 					};
 
 					// ================================================================
@@ -844,7 +1031,28 @@ export default function (pi: ExtensionAPI) {
 						}
 					}
 
-					// --- Line 3 elements ---
+				if (isEnabled("agentPlan") && (turnCount > 0 || subagentTasks.length > 0)) {
+					const doneCount = planSteps.filter((s) => s.done).length;
+					const runningSA = subagentTasks.filter((s) => s.status === "running").length;
+					let planText = "";
+					if (planSteps.length > 0) {
+						planText += theme.fg("accent", `📋 ${doneCount}/${planSteps.length}`);
+					} else if (runningSA > 0) {
+						planText += theme.fg("warning", `⚡ ${runningSA} subagent${runningSA > 1 ? "s" : ""}`);
+					} else if (turnCount > 0) {
+						planText += theme.fg("dim", `📋 ${turnCount} turn${turnCount > 1 ? "s" : ""}`);
+					}
+					if (runningSA > 0 && planSteps.length > 0) {
+						planText += theme.fg("warning", ` ⚡${runningSA}`);
+					}
+					planText += theme.fg("dim", ` · ${turnCount}t`);
+					line2Items.push({
+						key: "agentPlan", defaultLine: 1, order: 22,
+						fixedCol: config.placement?.agentPlan?.col,
+						render: () => planText,
+					});
+				}
+						// --- Line 3 elements ---
 					const line3Items: CellItem[] = [];
 					if (isEnabled("lastInput") && lastUserInput) {
 						line3Items.push({
@@ -944,15 +1152,109 @@ export default function (pi: ExtensionAPI) {
 		});
 	});
 
-	// ---- Track tool execution ----
+	// ---- Track plan from assistant messages ----
+	// Parse numbered or bulleted lists from the first assistant message as plan steps
+	function parsePlanFromText(text: string): string[] {
+		const steps: string[] = [];
+		const lines = text.split("\n");
+		for (const line of lines) {
+			const trimmed = line.trim();
+			// Match numbered steps: "1.", "Step 1:", "1)", "Task 1:"
+			const numMatch = trimmed.match(/^(?:Step\s*)?(\d+)[.)]\s+(.+)/i);
+			if (numMatch) {
+				steps.push(numMatch[2].trim());
+				continue;
+			}
+			// Match bullet points: "- ", "* ", "• "
+			const bulletMatch = trimmed.match(/^[-*•]\s+(.+)/);
+			if (bulletMatch && steps.length > 0) { // Only capture bullets after we've seen numbered items
+				steps.push(bulletMatch[1].trim());
+			}
+		}
+		return steps;
+	}
+
+	pi.on("turn_start", async () => {
+		turnCount++;
+	});
+
+	pi.on("message_end", async (event) => {
+		// Parse plan from first assistant message
+		if (!hasPlanMessage && event.message.role === "assistant") {
+			const content = event.message.content;
+			if (content && Array.isArray(content)) {
+				const textParts = content
+					.filter((b): b is { type: "text"; text: string } => b.type === "text" && "text" in b)
+					.map((b) => b.text)
+					.join("\n");
+				const parsed = parsePlanFromText(textParts);
+				if (parsed.length >= 2) { // At least 2 steps to count as a plan
+					planSteps = parsed.map((text) => ({ text, done: false }));
+					hasPlanMessage = true;
+				}
+			}
+		}
+	});
+
+	// ---- Track subagent delegations and plan step completion ----
 	pi.on("tool_execution_start", async (event) => {
 		runningTools.set(event.toolCallId, { name: event.toolName, startTime: Date.now() });
+
+		// Track subagent tool calls
+		if (event.toolName === "subagent" || event.toolName === "task") {
+			const args = event.args as any;
+			const taskDesc = args?.task || args?.description || args?.prompt || event.toolName;
+			const shortTask = typeof taskDesc === "string"
+				? taskDesc.replace(/\n/g, " ").replace(/\s+/g, " ").trim().slice(0, 80)
+				: event.toolName;
+			subagentTasks.push({ task: shortTask, status: "running", startTime: Date.now() });
+		}
+
+		// Mark matching plan step as in-progress
+		if (planSteps.length > 0 && event.toolName) {
+			const lowerTool = event.toolName.toLowerCase();
+			for (const step of planSteps) {
+				if (!step.done) {
+					const lowerStep = step.text.toLowerCase();
+					// Match if step mentions the tool or vice versa (simple keyword match)
+					if (lowerStep.includes(lowerTool) || lowerTool.includes(lowerStep.slice(0, 8))) {
+						step.toolName = event.toolName;
+						break;
+					}
+				}
+			}
+		}
 	});
 
 	pi.on("tool_execution_end", async (event) => {
 		runningTools.delete(event.toolCallId);
 		if (event.toolName) {
 			toolCounts.set(event.toolName, (toolCounts.get(event.toolName) || 0) + 1);
+
+			// Mark plan step as done when tool completes
+			for (const step of planSteps) {
+				if (!step.done && step.toolName === event.toolName) {
+					step.done = true;
+					break;
+				}
+			}
+
+			// Mark subagent as completed
+			if (event.toolName === "subagent" || event.toolName === "task") {
+				const running = subagentTasks.filter((s) => s.status === "running");
+				if (running.length > 0) {
+					running[running.length - 1].status = "completed";
+				}
+			}
+		}
+
+		// Auto-complete plan steps that have no matching tool after a batch
+		if (planSteps.length > 0 && runningTools.size === 0 && agentEntries.filter((a) => a.status === "running").length === 0) {
+			for (const step of planSteps) {
+				if (!step.done && !step.toolName) {
+					step.done = true; // Auto-complete unassigned steps when agent is idle
+				}
+			}
 		}
 	});
 
@@ -971,8 +1273,6 @@ export default function (pi: ExtensionAPI) {
 	});
 
 	// ---- Track provider rate limits from response headers ----
-	// Anthropic: anthropic-ratelimit-tokens-limit/remaining, anthropic-ratelimit-requests-limit/remaining
-	// OpenAI: x-ratelimit-limit-tokens, x-ratelimit-remaining-tokens, x-ratelimit-limit-requests, x-ratelimit-remaining-requests
 	pi.on("after_provider_response", async (event) => {
 		const headers = event.headers;
 		if (!headers || event.status >= 400) return;

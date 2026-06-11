@@ -7,7 +7,7 @@
   "author": "dafei1288",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dafei1288/pi-hud.git"
+    "url": "https://github.com/dafei1288/pi-agent-hud.git"
   },
   "files": ["extensions/", "examples/", "scripts/", "docs/", "README.md", "README_EN.md"],
   "peerDependencies": {
@@ -19,6 +19,6 @@
     "extensions": ["./extensions"]
   },
   "scripts": {
-    "check": "tsc --noEmit --skipLibCheck extensions/pi-hud.ts"
+    "check": "tsc --noEmit --skipLibCheck extensions/pi-agent-hud.ts"
   }
 }

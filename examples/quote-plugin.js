@@ -3,7 +3,7 @@
  *
  * 每隔 10 秒从谏言库中随机选取一句显示在 HUD Line 3。
  *
- * 安装：复制到 .pi/pi-hud-plugins/quote.js 或 ~/.pi/agent/pi-hub-plugins/quote.js
+ * 安装：复制到 .pi/pi-agent-hud-plugins/quote.js 或 ~/.pi/agent/pi-agent-hud-plugins/quote.js
  */
 
 const quotes = [

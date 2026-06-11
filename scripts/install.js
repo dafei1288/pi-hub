@@ -13,7 +13,7 @@ const path = require("path");
 const os = require("os");
 
 const isGlobal = process.argv.includes("--global");
-const extName = "pi-hud.ts";
+const extName = "pi-agent-hud.ts";
 const srcExt = path.resolve(__dirname, "..", "extensions", extName);
 
 if (!fs.existsSync(srcExt)) {

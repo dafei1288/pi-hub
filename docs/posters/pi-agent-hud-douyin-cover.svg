@@ -1,0 +1,114 @@
+<svg width="1080" height="1920" viewBox="0 0 1080 1920" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="60" x2="1020" y2="1880" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#06080D"/>
+      <stop offset="1" stop-color="#141821"/>
+    </linearGradient>
+    <linearGradient id="hero" x1="70" y1="0" x2="790" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF2147"/>
+      <stop offset="1" stop-color="#FF6A4D"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="150" y1="650" x2="930" y2="1320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#151C28"/>
+      <stop offset="1" stop-color="#222A38"/>
+    </linearGradient>
+    <filter id="shadow" x="70" y="70" width="940" height="1840" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="26" stdDeviation="28" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+    <filter id="cardShadow" x="90" y="560" width="900" height="760" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="32" stdDeviation="30" flood-color="#000000" flood-opacity="0.34"/>
+    </filter>
+    <style>
+      .sans { font-family: 'Microsoft YaHei UI','Microsoft YaHei','PingFang SC','Noto Sans CJK SC','Source Han Sans SC',sans-serif; }
+      .mono { font-family: 'Cascadia Mono','Consolas','JetBrains Mono','Courier New',monospace; }
+    </style>
+  </defs>
+
+  <rect width="1080" height="1920" fill="url(#bg)"/>
+  <circle cx="944" cy="196" r="126" fill="#FF2147" fill-opacity="0.12"/>
+  <circle cx="132" cy="1720" r="164" fill="#FF8A5A" fill-opacity="0.08"/>
+  <rect x="28" y="28" width="1024" height="1864" rx="46" stroke="#252B35" stroke-width="2"/>
+
+  <g filter="url(#shadow)">
+    <rect x="72" y="86" width="408" height="76" rx="22" fill="#FF2147"/>
+    <text x="104" y="136" class="sans" font-size="28" font-weight="800" fill="#FFF9F6">Pi Agent HUD for pi-coding-agent</text>
+
+    <rect x="764" y="88" width="230" height="70" rx="20" fill="#0A0D13" stroke="#FFFFFF" stroke-width="3"/>
+    <text x="820" y="134" class="sans" font-size="30" font-weight="900" fill="#FFFFFF">教程向</text>
+
+    <text x="74" y="294" class="sans" font-size="86" font-weight="900" fill="#FFFFFF">3步装好</text>
+    <text x="74" y="392" class="sans" font-size="112" font-weight="900" fill="#FFFFFF">Pi Agent HUD</text>
+
+    <g transform="rotate(-3 74 438)">
+      <rect x="74" y="424" width="786" height="138" rx="34" fill="url(#hero)"/>
+      <text x="118" y="482" class="sans" font-size="50" font-weight="900" fill="#FFF9F6">终端底栏直接变 HUD</text>
+      <text x="118" y="536" class="sans" font-size="50" font-weight="900" fill="#FFF9F6">1分钟看懂怎么装</text>
+    </g>
+
+    <rect x="770" y="596" width="208" height="76" rx="22" fill="#11161E" stroke="#FF2147" stroke-width="3"/>
+    <text x="810" y="645" class="sans" font-size="34" font-weight="900" fill="#FF5B61">实机效果</text>
+  </g>
+
+  <g filter="url(#cardShadow)">
+    <rect x="118" y="650" width="844" height="600" rx="40" fill="#11151D"/>
+    <rect x="118" y="650" width="844" height="600" rx="40" fill="url(#glow)" fill-opacity="0.98"/>
+    <rect x="118" y="650" width="844" height="600" rx="40" stroke="#2B3342" stroke-width="4"/>
+
+    <circle cx="178" cy="716" r="10" fill="#FF6157"/>
+    <circle cx="210" cy="716" r="10" fill="#FFBD2E"/>
+    <circle cx="242" cy="716" r="10" fill="#28C840"/>
+    <text x="290" y="726" class="mono" font-size="24" font-weight="700" fill="#B6BFCA">pi-agent-hud live preview</text>
+
+    <rect x="154" y="784" width="772" height="102" rx="24" fill="#0B1017"/>
+    <text x="182" y="840" class="mono" font-size="22" font-weight="700" fill="#EAF0F6">[claude-sonnet-4-6] pi-hub git:(main) medium</text>
+    <text x="182" y="874" class="mono" font-size="22" font-weight="700" fill="#7EE787">[########............] 39%   21m</text>
+
+    <rect x="154" y="916" width="772" height="116" rx="24" fill="#0B1017"/>
+    <text x="182" y="968" class="mono" font-size="20" font-weight="700" fill="#9AE6B4">AGENTS.md | skills x5 | ext.tools x2</text>
+    <text x="182" y="1004" class="mono" font-size="20" font-weight="700" fill="#F6D365">done: Grep x10 | Bash x3 | Edit 12s</text>
+    <text x="182" y="1040" class="mono" font-size="20" font-weight="700" fill="#9DD6D8">plugin: quote | layout: 2-col | tokens: high</text>
+
+    <rect x="154" y="1060" width="772" height="82" rx="24" fill="#0B1017"/>
+    <text x="182" y="1112" class="mono" font-size="22" font-weight="700" fill="#EAF0F6">&gt; how to build a REST API with authentication?</text>
+
+    <rect x="154" y="1164" width="772" height="46" rx="18" fill="#2A3038"/>
+    <rect x="168" y="1179" width="240" height="16" rx="8" fill="#FF2147"/>
+    <rect x="422" y="1179" width="174" height="16" rx="8" fill="#FFD86A"/>
+    <rect x="610" y="1179" width="194" height="16" rx="8" fill="#75DA7B"/>
+    <text x="820" y="1193" class="mono" font-size="16" font-weight="800" fill="#D3D8E0">context</text>
+  </g>
+
+  <g>
+    <rect x="76" y="1316" width="928" height="252" rx="36" fill="#0C1016" stroke="#252B35" stroke-width="3"/>
+    <text x="114" y="1382" class="sans" font-size="30" font-weight="900" fill="#FF5B61">STEP 1</text>
+    <text x="114" y="1424" class="sans" font-size="42" font-weight="900" fill="#FFFFFF">运行安装脚本</text>
+    <text x="114" y="1462" class="mono" font-size="24" font-weight="700" fill="#AAB5BE">node scripts/install.js</text>
+
+    <text x="430" y="1382" class="sans" font-size="30" font-weight="900" fill="#FF5B61">STEP 2</text>
+    <text x="430" y="1424" class="sans" font-size="42" font-weight="900" fill="#FFFFFF">重启或 /reload</text>
+    <text x="430" y="1462" class="sans" font-size="24" font-weight="700" fill="#AAB5BE">马上加载 HUD</text>
+
+    <text x="734" y="1382" class="sans" font-size="30" font-weight="900" fill="#FF5B61">STEP 3</text>
+    <text x="734" y="1424" class="sans" font-size="42" font-weight="900" fill="#FFFFFF">直接开用</text>
+    <text x="734" y="1462" class="sans" font-size="24" font-weight="700" fill="#AAB5BE">模型 / Git / Context</text>
+
+    <line x1="388" y1="1354" x2="388" y2="1490" stroke="#252B35" stroke-width="2"/>
+    <line x1="694" y1="1354" x2="694" y2="1490" stroke="#252B35" stroke-width="2"/>
+
+    <rect x="112" y="1506" width="856" height="26" rx="13" fill="#1A202A"/>
+    <rect x="112" y="1506" width="286" height="26" rx="13" fill="#FF2147"/>
+    <rect x="410" y="1506" width="246" height="26" rx="13" fill="#FFD86A"/>
+    <rect x="668" y="1506" width="300" height="26" rx="13" fill="#75DA7B"/>
+  </g>
+
+  <g>
+    <rect x="74" y="1632" width="932" height="204" rx="38" fill="#FFF8F3"/>
+    <rect x="74" y="1632" width="932" height="204" rx="38" stroke="#1A1A1A" stroke-width="4"/>
+    <text x="116" y="1702" class="sans" font-size="34" font-weight="900" fill="#FF2147">Pi Agent HUD for pi-coding-agent</text>
+    <text x="116" y="1760" class="sans" font-size="58" font-weight="900" fill="#161616">终端党必看安装教程</text>
+    <rect x="116" y="1786" width="504" height="34" rx="17" fill="#FFF0F2" stroke="#FF2147" stroke-width="3"/>
+    <text x="136" y="1810" class="mono" font-size="22" font-weight="800" fill="#161616">github.com/dafei1288/pi-agent-hud</text>
+    <rect x="766" y="1782" width="194" height="34" rx="17" fill="#161616"/>
+    <text x="792" y="1807" class="sans" font-size="22" font-weight="800" fill="#FFF9F5">抖音视频封面</text>
+  </g>
+</svg>

@@ -113,11 +113,35 @@ Press `Ctrl+H` to open a scrollable history overlay:
 | `Enter` | Select and paste into editor |
 | `Esc` / `Ctrl+C` | Close overlay |
 
-For detailed documentation, see [docs/pi-hud.md](docs/pi-hud.md).
+For detailed documentation, see [docs/pi-agent-hud.md](docs/pi-agent-hud.md).
+
+### Ctrl+Alt+P — Execution Plan Overlay
+
+Press `Ctrl+Alt+P` to view the agent's execution plan:
+
+```
+┌ Agent Execution Plan ─────────────────────────────────┐
+│ 🎯 how to build a REST API with authentication?       │
+│ 📊 3/5 steps · 8 turns · 2 subagents                  │
+├────────────────────────────────────────────────────────┤
+│ ✓ Read project structure                               │
+│ ✓ Design API endpoints                                 │
+│ ○ Implement controllers                                │
+│ ○ Add authentication middleware                        │
+│ ○ Write tests                                          │
+├ Subagent Deployments ─────────────────────────────────┤
+│ ◐ design database schema                 1m 32s        │
+│ ✓ implement auth middleware               45s           │
+└ Esc / Ctrl+C close ────────────────────────────────────┘
+```
+
+| Key | Action |
+|-----|--------|
+| `Esc` / `Ctrl+C` | Close overlay |
 
 ## Configuration
 
-Configure via `.pi/pi-hud.json` (project) or `~/.pi/agent/pi-hud.json` (global):
+Configure via `.pi/pi-agent-hud.json` (project) or `~/.pi/agent/pi-agent-hud.json` (global):
 
 ```jsonc
 {
@@ -156,7 +180,7 @@ Configure via `.pi/pi-hud.json` (project) or `~/.pi/agent/pi-hud.json` (global):
 | `lastInput` | Last user input | ✅ |
 | `historyHint` | Ctrl+H history hint | ✅ |
 
-See [examples/pi-hud.json](examples/pi-hud.json) for a full configuration example.
+See [examples/pi-agent-hud.json](examples/pi-agent-hud.json) for a full configuration example.
 
 ## Grid Layout
 
@@ -213,7 +237,7 @@ Line 5: [4-col]  col0 │ col1 │ col2 │ col3
 
 Users can write custom plugins to add any content to the HUD.
 
-Place plugins in `.pi/pi-hud-plugins/*.js` (project) or `~/.pi/agent/pi-hub-plugins/*.js` (global).
+Place plugins in `.pi/pi-agent-hud-plugins/*.js` (project) or `~/.pi/agent/pi-agent-hud-plugins/*.js` (global).
 
 **Plugin interface:**
 
@@ -248,11 +272,11 @@ module.exports = {
 ```
 pi-agent-hud/
 ├── extensions/
-│   └── pi-hud.ts                  # Extension source code
+│   └── pi-agent-hud.ts            # Extension source code
 ├── scripts/
 │   └── install.js                 # Installation script
 ├── examples/
-│   ├── pi-hud.json                 # Config example (all fields)
+│   ├── pi-agent-hud.json           # Config example (all fields)
 │   ├── layout-2col-demo.json       # Layout Demo: 2-column
 │   ├── layout-dashboard-demo.json  # Layout Demo: 5-line dashboard
 │   ├── turn-counter-plugin.js      # Plugin: turn counter
@@ -260,7 +284,7 @@ pi-agent-hud/
 │   ├── context-emoji-plugin.js     # Plugin: emoji context
 │   └── quote-plugin.js             # Plugin: random quote
 ├── docs/
-│   └── pi-hud.md                   # Detailed documentation
+│   └── pi-agent-hud.md             # Detailed documentation
 ├── tsconfig.json
 ├── package.json
 ├── README.md
@@ -277,11 +301,11 @@ Runtime depends on the pi-coding-agent Extension API:
 
 No additional npm packages are required — extensions are loaded directly by the pi runtime.
 
-<a href="https://www.star-history.com/?repos=dafei1288%2Fpi-hub&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=dafei1288%2Fpi-agent-hud&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=dafei1288/pi-hub&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=dafei1288/pi-hub&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=dafei1288/pi-hub&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=dafei1288/pi-agent-hud&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=dafei1288/pi-agent-hud&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=dafei1288/pi-agent-hud&type=date&legend=top-left" />
  </picture>
 </a>
 

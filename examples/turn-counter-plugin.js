@@ -1,7 +1,7 @@
 /**
  * Example pi-agent-hud Plugin — Custom "turn count" display.
  *
- * Place in .pi/pi-hud-plugins/turn-counter.js or ~/.pi/agent/pi-hud-plugins/turn-counter.js
+ * Place in .pi/pi-agent-hud-plugins/turn-counter.js or ~/.pi/agent/pi-agent-hud-plugins/turn-counter.js
  *
  * Shows: 🔁 12 turns (auto-calculated from input history length)
  */

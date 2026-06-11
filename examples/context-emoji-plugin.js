@@ -1,7 +1,7 @@
 /**
  * Example pi-agent-hud Plugin — Context bar emoji style.
  *
- * Place in .pi/pi-hud-plugins/context-emoji.js
+ * Place in .pi/pi-agent-hud-plugins/context-emoji.js
  *
  * Replaces Line 1 context percentage with an emoji indicator:
  *   🟢 < 70%   🟡 70-90%   🔴 > 90%
