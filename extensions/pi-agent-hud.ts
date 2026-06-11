@@ -280,6 +280,9 @@ class UnifiedHudOverlay implements Component {
 	private planSteps: PlanStep[];
 	private subagents: SubagentTask[];
 	private turnCount: number;
+	private toolLog: Array<{ icon: string; name: string; detail: string; elapsed: string; status: "done" | "running" }>;
+	private toolCatCounts: Record<string, number>;
+	private turnLogView: Array<{ turn: number; summary: string }>;
 	private tab: "history" | "plan";
 	private selected: number;
 	private scrollOffset: number;
@@ -294,6 +297,9 @@ class UnifiedHudOverlay implements Component {
 		planSteps: PlanStep[],
 		subagents: SubagentTask[],
 		turnCount: number,
+		toolLog: Array<{ icon: string; name: string; detail: string; elapsed: string; status: "done" | "running" }>,
+		toolCatCounts: Record<string, number>,
+		turnLogView: Array<{ turn: number; summary: string }>,
 		theme: any,
 		tui: TUI,
 		done: (result: string | undefined) => void,
@@ -303,6 +309,9 @@ class UnifiedHudOverlay implements Component {
 		this.planSteps = planSteps;
 		this.subagents = subagents;
 		this.turnCount = turnCount;
+		this.toolLog = toolLog;
+		this.toolCatCounts = toolCatCounts;
+		this.turnLogView = turnLogView;
 		this.tab = "history";
 		this.theme = theme;
 		this.tui = tui;
@@ -422,15 +431,49 @@ class UnifiedHudOverlay implements Component {
 				);
 			}
 		} else if (this.subagents.length === 0) {
-			lines.push(this.theme.fg("dim", "├" + "─".repeat(innerW) + "┤"));
-			const taskHint = this.task.length > 0
-				? `📋 ${truncateToWidth(this.task, innerW - 14, "…")}`
-				: "📋 No structured plan detected";
-			lines.push(
-				this.theme.fg("dim", "│  ") +
-				this.theme.fg("text", padToWidth(taskHint, innerW - 4)) +
-				this.theme.fg("dim", " │"),
-			);
+			// Category summary
+			const cats = Object.entries(this.toolCatCounts)
+				.filter(([, c]) => c > 0)
+				.sort(([, a], [, b]) => b - a);
+			if (cats.length > 0) {
+				const catStr = cats.map(([icon, count]) => `${icon}×${count}`).join("  ");
+				lines.push(this.theme.fg("dim", "├" + "─".repeat(innerW) + "┤"));
+				lines.push(
+					this.theme.fg("dim", "│  ") +
+					this.theme.fg("text", `📊 ${catStr}`) +
+					this.theme.fg("dim", " │"),
+				);
+			}
+			// Tool log
+			if (this.toolLog.length > 0) {
+				if (cats.length === 0) lines.push(this.theme.fg("dim", "├" + "─".repeat(innerW) + "┤"));
+				lines.push(
+					this.theme.fg("dim", "│  ") +
+					this.theme.fg("dim", "🕐 Tool call timeline") +
+					this.theme.fg("dim", " │"),
+				);
+				for (const entry of this.toolLog.slice(0, 10)) {
+					const marker = entry.status === "running"
+						? this.theme.fg("warning", "◐")
+						: this.theme.fg("success", "✓");
+					const detail = entry.detail ? " · " + this.theme.fg("dim", entry.detail) : "";
+					const time = entry.status === "running"
+						? this.theme.fg("dim", ` (${entry.elapsed})`)
+						: "";
+					lines.push(
+						this.theme.fg("dim", "│   ") +
+						marker + " " + entry.icon + detail + time +
+						this.theme.fg("dim", " │"),
+					);
+				}
+			} else {
+				if (cats.length === 0) lines.push(this.theme.fg("dim", "├" + "─".repeat(innerW) + "┤"));
+				lines.push(
+					this.theme.fg("dim", "│  ") +
+					this.theme.fg("dim", padToWidth("📋 Waiting for tool activity…", innerW - 4)) +
+					this.theme.fg("dim", " │"),
+				);
+			}
 		}
 
 		// Subagents section
@@ -453,6 +496,27 @@ class UnifiedHudOverlay implements Component {
 					icon + " " +
 					this.theme.fg(sa.status === "running" ? "text" : "dim", padToWidth(saText, maxStepW - elapsed.length - 4)) +
 					" " + this.theme.fg("dim", elapsed) +
+					this.theme.fg("dim", " │"),
+				);
+			}
+		}
+
+		// Turn log
+		if (this.turnLogView.length > 0) {
+			lines.push(this.theme.fg("dim", "├" + "─".repeat(innerW) + "┤"));
+			lines.push(
+				this.theme.fg("dim", "│  ") +
+				this.theme.fg("text", "💬 Turn log") +
+				this.theme.fg("dim", " │"),
+			);
+			for (const t of this.turnLogView.slice(-10)) {
+				const turnLabel = this.theme.fg("dim", `T${String(t.turn).padStart(2, "0")}`);
+				const summary = t.summary || "(thinking…)";
+				const display = truncateToWidth(summary, innerW - 10, "…");
+				lines.push(
+					this.theme.fg("dim", "│  ") +
+					turnLabel + " " +
+					this.theme.fg("dim", display) +
 					this.theme.fg("dim", " │"),
 				);
 			}
@@ -724,6 +788,73 @@ export default function (pi: ExtensionAPI) {
 	let turnCount = 0;
 	let hasPlanMessage = false; // Set after first assistant message
 
+	/** Map tool name to a compact icon */
+	function toolIcon(name: string): string {
+		const lower = name.toLowerCase();
+		if (lower.includes("read") || lower.includes("cat") || lower.includes("list")) return "📖";
+		if (lower.includes("grep") || lower.includes("rg") || lower.includes("search") || lower.includes("find")) return "🔍";
+		if (lower.includes("bash") || lower.includes("exec") || lower.includes("run")) return "⚙";
+		if (lower.includes("edit") || lower.includes("write") || lower.includes("patch")) return "✎";
+		if (lower.includes("subagent") || lower.includes("task") || lower.includes("agent")) return "🤖";
+		if (lower.includes("web") || lower.includes("http") || lower.includes("fetch")) return "🌐";
+		return "🔧";
+	}
+
+	/** Extract meaningful detail from tool args for display */
+	function extractToolDetail(toolName: string, args: unknown): string {
+		if (!args || typeof args !== "object") return "";
+		const a = args as Record<string, unknown>;
+		const lower = toolName.toLowerCase();
+		// File-oriented tools: show path
+		if (lower.includes("read") || lower.includes("edit") || lower.includes("write")) {
+			const p = a.path || a.filePath || a.file || a.filename || "";
+			if (typeof p === "string" && p) {
+				// Show just the filename from path
+				const parts = p.replace(/\\/g, "/").split("/");
+				return parts.slice(-2).join("/");
+			}
+			return "";
+		}
+		// Bash/exec: show command
+		if (lower.includes("bash") || lower.includes("exec") || lower.includes("run")) {
+			const c = a.command || a.cmd || a.script || "";
+			if (typeof c === "string" && c) {
+				return c.length > 30 ? c.slice(0, 27) + "…" : c;
+			}
+			return "";
+		}
+		// Search tools
+		if (lower.includes("grep") || lower.includes("search") || lower.includes("find") || lower.includes("rg")) {
+			const p = a.pattern || a.query || a.term || "";
+			if (typeof p === "string" && p) {
+				return p.length > 25 ? p.slice(0, 22) + "…" : p;
+			}
+			return "";
+		}
+		// Subagent
+		if (lower.includes("subagent") || lower.includes("agent")) {
+			const t = a.task || a.prompt || a.description || a.agent || "";
+			if (typeof t === "string" && t) {
+				return t.length > 30 ? t.slice(0, 27) + "…" : t;
+			}
+			return "";
+		}
+		// Web tools
+		if (lower.includes("web") || lower.includes("fetch") || lower.includes("http")) {
+			const u = a.url || a.query || a.prompt || "";
+			if (typeof u === "string" && u) {
+				return u.length > 35 ? u.slice(0, 32) + "…" : u;
+			}
+			return "";
+		}
+		return "";
+	}
+
+	const recentTools: string[] = [];
+	const toolLog: Array<{ icon: string; name: string; detail: string; elapsed: string; status: "done" | "running"; startTime: number }> = [];
+	const toolCatCounts: Record<string, number> = {};
+	const turnLog: Array<{ turn: number; summary: string; startedAt: number }> = [];
+
 	// Rate limit tracking — updated from after_provider_response headers
 	let rateLimitInfo: RateLimitInfo | undefined;
 
@@ -773,7 +904,8 @@ export default function (pi: ExtensionAPI) {
 
 			const selected = await ctx.ui.custom<string | undefined>(
 				(tui, theme, _keybindings, done) => {
-					return new UnifiedHudOverlay(history, task, planSteps, subagentTasks, turnCount, theme, tui, done);
+					return new UnifiedHudOverlay(history, task, planSteps, subagentTasks, turnCount,
+					toolLog, toolCatCounts, turnLog, theme, tui, done);
 				},
 				{
 					overlay: true,
@@ -803,6 +935,10 @@ export default function (pi: ExtensionAPI) {
 		subagentTasks.length = 0;
 		turnCount = 0;
 		hasPlanMessage = false;
+		recentTools.length = 0;
+		toolLog.length = 0;
+		for (const k of Object.keys(toolCatCounts)) delete toolCatCounts[k];
+		turnLog.length = 0;
 		rateLimitInfo = undefined;
 		cachedCwd = "";
 		refreshContextFiles(ctx.cwd);
@@ -1044,12 +1180,21 @@ export default function (pi: ExtensionAPI) {
 						planText += theme.fg("warning", `⚡ ${runningSA} subagent${runningSA > 1 ? "s" : ""}`);
 						planText += theme.fg("dim", ` · ${turnCount}t`);
 					} else {
-						// No plan, no subagents: show task summary + turns
-						const task = lastUserInput || "";
-						const shortTask = task.length > 20 ? task.slice(0, 17) + "…" : task;
-						planText += theme.fg("accent", `📋`);
-						if (shortTask) planText += theme.fg("dim", ` "${shortTask}"`);
-						planText += theme.fg("dim", ` · ${turnCount}t`);
+						// No plan, no subagents: show turn count + recent tool icons
+						planText += theme.fg("accent", `📋 ${turnCount}t`);
+						const seen = new Set<string>();
+						const recentIcons: string[] = [];
+						for (const t of recentTools.slice(0, 8)) {
+							const ic = toolIcon(t);
+							if (!seen.has(ic)) {
+								seen.add(ic);
+								recentIcons.push(ic);
+								if (recentIcons.length >= 3) break;
+							}
+						}
+						if (recentIcons.length > 0) {
+							planText += theme.fg("dim", ` ${recentIcons.join("")}`);
+						}
 					}
 					line2Items.push({
 						key: "agentPlan", defaultLine: 1, order: 22,
@@ -1181,6 +1326,8 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("turn_start", async () => {
 		turnCount++;
+		turnLog.push({ turn: turnCount, summary: "", startedAt: Date.now() });
+		if (turnLog.length > 30) turnLog.shift();
 	});
 
 	pi.on("message_end", async (event) => {
@@ -1199,11 +1346,33 @@ export default function (pi: ExtensionAPI) {
 				}
 			}
 		}
+		// Capture assistant message as turn summary
+		if (event.message.role === "assistant" && turnLog.length > 0) {
+			const lastTurn = turnLog[turnLog.length - 1];
+			if (!lastTurn.summary) {
+				const content = event.message.content;
+				if (content && Array.isArray(content)) {
+					const text = content
+						.filter((b): b is { type: "text"; text: string } => b.type === "text" && "text" in b)
+						.map((b) => b.text)
+						.join(" ");
+					lastTurn.summary = text.replace(/\n/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+				}
+			}
+		}
 	});
 
 	// ---- Track subagent delegations and plan step completion ----
 	pi.on("tool_execution_start", async (event) => {
 		runningTools.set(event.toolCallId, { name: event.toolName, startTime: Date.now() });
+
+		// Add to tool log for plan overlay
+		if (event.toolName) {
+			const icon = toolIcon(event.toolName);
+			const detail = extractToolDetail(event.toolName, event.args);
+			toolLog.unshift({ icon, name: event.toolName, detail, elapsed: "0s", status: "running", startTime: Date.now() });
+			if (toolLog.length > 50) toolLog.length = 50;
+		}
 
 		// Track subagent tool calls
 		if (event.toolName === "subagent" || event.toolName === "task") {
@@ -1235,6 +1404,21 @@ export default function (pi: ExtensionAPI) {
 		runningTools.delete(event.toolCallId);
 		if (event.toolName) {
 			toolCounts.set(event.toolName, (toolCounts.get(event.toolName) || 0) + 1);
+
+			// Track recent tools for Line 2 plan display
+			recentTools.unshift(event.toolName);
+			if (recentTools.length > 8) recentTools.length = 8;
+
+			// Update tool log: mark running entry as done
+			const icon = toolIcon(event.toolName);
+			toolCatCounts[icon] = (toolCatCounts[icon] || 0) + 1;
+			for (const entry of toolLog) {
+				if (entry.status === "running" && entry.name === event.toolName) {
+					entry.status = "done";
+					entry.elapsed = formatDuration(Date.now() - entry.startTime);
+					break;
+				}
+			}
 
 			// Mark plan step as done when tool completes
 			for (const step of planSteps) {

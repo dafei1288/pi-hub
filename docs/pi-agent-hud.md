@@ -25,7 +25,7 @@ pi-agent-hud 显示 2~3 行状态信息：
 ```
 [claude-sonnet-4-6] pi-mono git:(main) · medium    [████████░░░░░░░░░░░░] 39%    ⏱ 21m
 AGENTS.md · skills x5 · ext.tools x2 · 📋 3/5 · 2t · ✓ Grep ×10 · ✓ Bash ×3 · ◐ Edit (12s) · ◐ agent (2m 15s)
-▸ how to build a REST API with authentication?
+▸ how to build a REST API with authentication?  Ctrl+H:5
 ```
 
 ### Line 1 — 会话概览
@@ -85,18 +85,20 @@ AGENTS.md · skills x5 · ext.tools x2 · 📋 3/5 · 2t · ✓ Grep ×10 · ✓
 - 每次新输入自动更新
 - 多行输入会合并为单行显示
 
-### Ctrl+H — 历史记录浮层
+### Ctrl+H — 历史记录 + 执行计划浮层
 
-按 `Ctrl+H` 弹出会话输入历史浮层（最新的在最上面）：
+按 `Ctrl+H` 弹出统一浮层，按 `Tab` 键在**历史记录**和**执行计划**之间切换：
+
+**历史记录页（默认）：**
 
 ```
-┌ Session History ─────────────────────────────────────┐
-│ ▸ how to build a REST API with authentication?      │
-│   请帮我检查文档                                      │
-│   帮我提交一下                                        │
-│   推送吧                                              │
-├ ↑↓ scroll · Enter select · Esc close ───────────────┤
-└──────────────────────────────────────────────────────┘
+┌ [ History ]  Plan (Tab) ───────────────────────────────┐
+│ ▸ how to build a REST API with authentication?        │
+│   请帮我检查文档                                        │
+│   帮我提交一下                                          │
+│   推送吧                                                │
+├ ↑↓ scroll · Enter select · Tab plan · Esc close ──────┤
+└────────────────────────────────────────────────────────┘
 ```
 
 | 按键 | 功能 |
@@ -104,50 +106,53 @@ AGENTS.md · skills x5 · ext.tools x2 · 📋 3/5 · 2t · ✓ Grep ×10 · ✓
 | `↑` / `k` | 上移选择 |
 | `↓` / `j` | 下移选择 |
 | `Enter` | 选中并回填到输入框 |
+| `Tab` | 切换到执行计划页 |
 | `Esc` / `Ctrl+C` | 关闭浮层 |
 
 - 最多显示 10 条，超出可滚动浏览
 - 选中后文本回填到编辑器，方便重新发送或修改
 - 浮层定位在 HUD 上方，不遮挡主内容区
 
-### Ctrl+Alt+P — Agent 执行计划浮层
-
-按 `Ctrl+Alt+P` 查看 agent 的当前执行计划，包括任务分解、步骤进度、subagent 委派状态：
+**执行计划页（Tab 切换）：**
 
 ```
-┌ Agent Execution Plan ─────────────────────────────────┐
-│ 🎯 how to build a REST API with authentication?       │
-│ 📊 3/5 steps · 8 turns · 2 subagents                  │
-├────────────────────────────────────────────────────────┤
-│ ✓ Read project structure                               │
-│ ✓ Design API endpoints                                 │
-│ ○ Implement controllers                                │
-│ ○ Add authentication middleware                        │
-│ ○ Write tests                                          │
-├ Subagent Deployments ─────────────────────────────────┤
-│ ◐ design database schema                 1m 32s        │
-│ ✓ implement auth middleware               45s           │
-└ Esc / Ctrl+C close ────────────────────────────────────┘
+┌ History (Tab)  [ Plan ] ───────────────────────────────┐
+│ 🎯 how to build a REST API                              │
+│ 📋 12 turns                                             │
+├─────────────────────────────────────────────────────────┤
+│ 📊 📖×5  ✎×3  🔍×2  ⚙×2                                │
+├─────────────────────────────────────────────────────────┤
+│ 🕐 Tool call timeline                                   │
+│   ✓ 🔍 grep · extension                                 │
+│   ✓ ✎ edit · extensions/pi-agent-hud.ts                │
+│   ◐ ⚙ bash · npm build (12s)                           │
+├─────────────────────────────────────────────────────────┤
+│ 💬 Turn log                                             │
+│ T01 I'll start by reading the project structure         │
+│ T02 Let me search for the relevant files...             │
+│ T03 I'll make the changes to the extension...           │
+└ Esc close ─────────────────────────────────────────────┘
 ```
 
 | 按键 | 功能 |
 |------|------|
+| `Tab` | 切换回历史记录页 |
 | `Esc` / `Ctrl+C` | 关闭浮层 |
 
-**计划来源：**
-- Agent 的第一个 assistant 消息中自动解析编号/项目符号列表作为计划步骤
-- 检测到至少 2 个步骤时才会识别为有效计划
-- subagent 委派通过 `subagent` / `task` 工具调用自动追踪
+**计划页详情：**
 
-**HUD 紧凑显示**（Line 2，默认开启）：
+- **📊 分类统计** — 读/搜/写/执行/网络各类工具使用次数（📖🔍✎⚙🌐）
+- **🕐 工具时间线** — 最近 10 条工具调用，✓ 已完成 / ◐ 运行中 + 耗时
+- **💬 Turn log** — 每轮 agent 回复的前 60 字符摘要，最多显示最近 10 轮
+- **Agent 计划**（如有结构化步骤）— 步骤进度 + Subagent 委派状态
+
+**HUD 紧凑显示**（Line 2）：
 
 ```
-📋 3/5 · 2t                    # 无运行中的 subagent
-📋 3/5 ⚡2 agents · 8t         # 2 个 subagent 正在运行
+📋 3/5 ⚡2 · 8t              # 有计划步骤 + 运行中 subagent
+📋 12t 🔍📖✎                 # 无计划 — 显示轮次 + 最近工具图标
+⚡ 2 subagents · 8t          # 仅 subagent
 ```
-
-- `📋 3/5` = 已完成 / 总步骤数
-- `⚡2 agents` = 运行中的 subagent 数量
 - `· 8t` = 已完成的 turn 数
 
 **步骤追踪策略：**
